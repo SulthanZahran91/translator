@@ -1,0 +1,62 @@
+[project]
+name = "doc-translator"
+version = "0.1.0"
+description = "Korean-English Document Translation Service"
+requires-python = ">=3.11"
+dependencies = [
+    # Core
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    
+    # Database
+    "sqlalchemy[asyncio]>=2.0",
+    "aiosqlite>=0.19.0",
+    
+    # Auth
+    "passlib[bcrypt]>=1.7.4",
+    "python-jose[cryptography]>=3.3.0",
+    "python-multipart>=0.0.6",
+    
+    # Translation Pipeline
+    "python-docx>=0.8.11",
+    "pdf2docx>=0.5.6",
+    "tiktoken>=0.5.0",
+    "openai>=1.0.0",
+    
+    # Utilities
+    "httpx>=0.26.0",
+    "aiofiles>=23.2.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.26.0",
+    "ruff>=0.1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend"]
+
