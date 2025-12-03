@@ -8,6 +8,7 @@ import {
   LogOut,
   User,
   Languages,
+  MessageSquare,
 } from 'lucide-react';
 import Button from '../ui/Button';
 
@@ -23,6 +24,7 @@ export default function Layout({ children }: LayoutProps) {
   const navigation = [
     { name: 'Dashboard', href: '/', icon: FileText },
     { name: 'Glossaries', href: '/glossaries', icon: Book },
+    { name: 'Chat', href: '/chat', icon: MessageSquare },
   ];
 
   const handleLogout = () => {

@@ -51,7 +51,11 @@ def create_app() -> FastAPI:
     from backend.api.routes import auth, jobs, glossaries
     app.include_router(auth.router, prefix=settings.api_v1_prefix)
     app.include_router(jobs.router, prefix=settings.api_v1_prefix)
+    app.include_router(jobs.router, prefix=settings.api_v1_prefix)
     app.include_router(glossaries.router, prefix=settings.api_v1_prefix)
+    
+    from backend.api.routes import chat
+    app.include_router(chat.router, prefix=settings.api_v1_prefix)
     
     return app
 

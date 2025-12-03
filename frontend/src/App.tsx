@@ -9,6 +9,7 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import JobDetailPage from './pages/JobDetailPage';
 import GlossariesPage from './pages/GlossariesPage';
+import ChatPage from './pages/ChatPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -54,6 +55,14 @@ function AppContent() {
         element={
           <ProtectedRoute>
             <GlossariesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/chat"
+        element={
+          <ProtectedRoute>
+            <ChatPage />
           </ProtectedRoute>
         }
       />

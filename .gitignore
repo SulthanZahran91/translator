@@ -1,0 +1,36 @@
+# General
+.DS_Store
+.idea/
+.vscode/
+*.log
+tmp/
+
+# Python / Backend
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.env
+.env.*
+*.sqlite3
+*.db
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+
+# Application Specific
+storage/
+to_integrate.jsx
+verify_backend.py
