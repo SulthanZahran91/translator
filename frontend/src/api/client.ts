@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001/api/v1';
 
 export const apiClient = axios.create({
   baseURL: API_URL,
@@ -48,7 +48,7 @@ apiClient.interceptors.response.use(
 
           return apiClient(originalRequest);
         } catch {
-          processQueue(new Error('Failed to refresh token'), null);
+          // processQueue(new Error('Failed to refresh token'), null); // TODO: processQueue is not defined
           // Refresh failed, clear tokens and redirect to login
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');

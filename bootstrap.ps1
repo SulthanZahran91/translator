@@ -18,7 +18,7 @@ if (Test-Path "backend") {
     
     # Start the server
     Write-Host "Launching Backend Server..."
-    Start-Process -FilePath "uv" -ArgumentList "run --project backend uvicorn backend.api.main:app --reload"
+    Start-Process -FilePath "uv" -ArgumentList "run --project backend uvicorn backend.api.main:app --reload --port 8001"
 } else {
     Write-Error "Backend directory not found!"
 }

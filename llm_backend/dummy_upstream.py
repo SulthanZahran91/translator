@@ -115,4 +115,4 @@ async def openai_completion(req: CompletionRequest, user_info: dict = Depends(ve
 
 if __name__ == "__main__":
     # Run on port 8001 to avoid conflict with main backend (8000)
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 30
     
     # LLM Configuration
-    llm_api_url: str = "http://localhost:8001/v1"
+    llm_api_url: str = "http://localhost:8000/v1"
     llm_api_key: str = "not-needed-for-local"
     llm_model: str = "exaone"
     llm_max_retries: int = 10
@@ -41,8 +41,8 @@ class Settings(BaseSettings):
     llm_retry_max_delay: float = 60.0
     
     # Upstream LLM Integration
-    upstream_auth_url: str = "http://localhost:8001/auth"
-    upstream_completion_url: str = "http://localhost:8001/completion"
+    upstream_auth_url: str = "http://localhost:8000/auth"
+    upstream_completion_url: str = "http://localhost:8000/completion"
     
     # Translation Pipeline
     max_tokens_per_unit: int = 25000
