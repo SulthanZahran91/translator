@@ -54,6 +54,14 @@ export interface JobGlossary {
   conflicts: GlossaryConflict[];
 }
 
+export interface JobLog {
+  id: string;
+  message: string;
+  level: string;
+  phase: string | null;
+  created_at: string;
+}
+
 export const jobsApi = {
   async list(page = 1, perPage = 20): Promise<JobListResponse> {
     const response = await apiClient.get<JobListResponse>('/jobs', {
@@ -112,6 +120,11 @@ export const jobsApi = {
       source_term: sourceTerm,
       chosen_translation: chosenTranslation,
     });
+  },
+
+  async getLogs(id: string): Promise<JobLog[]> {
+    const response = await apiClient.get<JobLog[]>(`/jobs/${id}/logs`);
+    return response.data;
   },
 };
 

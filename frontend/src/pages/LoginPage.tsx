@@ -7,7 +7,8 @@ import { useAuthStore } from '../stores/authStore';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Card, { CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
-import { Languages, AlertCircle } from 'lucide-react';
+import { Languages, AlertCircle, Settings } from 'lucide-react';
+import ChatSettingsModal from '../components/chat/ChatSettingsModal';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -21,6 +22,7 @@ export default function LoginPage() {
   const location = useLocation();
   const { login, isLoading } = useAuthStore();
   const [error, setError] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
 
@@ -53,6 +55,16 @@ export default function LoginPage() {
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-accent/5 rounded-full blur-3xl" />
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-success/5 rounded-full blur-3xl" />
+      </div>
+
+      <div className="absolute top-4 right-4">
+        <button
+          onClick={() => setShowSettings(true)}
+          className="p-2 text-foreground-muted hover:text-foreground hover:bg-background-secondary rounded-lg transition-colors"
+          title="Chat Settings"
+        >
+          <Settings className="w-5 h-5" />
+        </button>
       </div>
 
       <div className="w-full max-w-md relative animate-slide-up">
@@ -113,6 +125,11 @@ export default function LoginPage() {
           </CardContent>
         </Card>
       </div>
+
+      <ChatSettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
     </div>
   );
 }

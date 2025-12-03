@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { useAuthStore } from '../../stores/authStore';
@@ -9,8 +10,10 @@ import {
   User,
   Languages,
   MessageSquare,
+  Settings,
 } from 'lucide-react';
 import Button from '../ui/Button';
+import ChatSettingsModal from '../chat/ChatSettingsModal';
 
 interface LayoutProps {
   children: ReactNode;
@@ -20,6 +23,7 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const [showSettings, setShowSettings] = useState(false);
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: FileText },
@@ -72,7 +76,7 @@ export default function Layout({ children }: LayoutProps) {
         </nav>
 
         {/* User section */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border">
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border space-y-2">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-accent/20 rounded-full flex items-center justify-center">
               <User className="w-5 h-5 text-accent" />
@@ -86,10 +90,21 @@ export default function Layout({ children }: LayoutProps) {
               </p>
             </div>
           </div>
+
           <Button
             variant="ghost"
             size="sm"
-            className="w-full justify-start"
+            className="w-full justify-start text-foreground-muted hover:text-foreground"
+            onClick={() => setShowSettings(true)}
+          >
+            <Settings className="w-4 h-4 mr-2" />
+            Settings
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start text-foreground-muted hover:text-foreground"
             onClick={handleLogout}
           >
             <LogOut className="w-4 h-4 mr-2" />
@@ -104,6 +119,11 @@ export default function Layout({ children }: LayoutProps) {
           {children}
         </div>
       </main>
+
+      <ChatSettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
     </div>
   );
 }

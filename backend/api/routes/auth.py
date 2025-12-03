@@ -6,7 +6,6 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,21 +23,27 @@ from backend.models.user import User
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
+import hashlib
+import bcrypt
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    # Pre-hash with SHA-256 to bypass bcrypt's 72-byte limit
+    password_hash = hashlib.sha256(plain_password.encode()).hexdigest()
+    # bcrypt.checkpw requires bytes
+    return bcrypt.checkpw(password_hash.encode(), hashed_password.encode())
 
 
 def hash_password(password: str) -> str:
     """Hash a password."""
-    return pwd_context.hash(password)
+    # Pre-hash with SHA-256 to bypass bcrypt's 72-byte limit
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    # bcrypt.hashpw returns bytes, we need string for DB
+    return bcrypt.hashpw(password_hash.encode(), bcrypt.gensalt()).decode()
 
 
 def create_access_token(
@@ -155,16 +160,51 @@ async def login(
     db: DbSessionDep,
     settings: SettingsDep,
 ) -> TokenResponse:
-    """Login and get access/refresh tokens."""
-    user = await get_user_by_email(db, form_data.username)
+    """Login and get access/refresh tokens.
     
-    if not user or not verify_password(form_data.password, user.password_hash):
+    Authenticates against the Upstream LLM service.
+    """
+    # 1. Authenticate with Upstream LLM
+    from backend.translation.llm_client import UpstreamLLMClient
+    llm_client = UpstreamLLMClient()
+    
+    try:
+        auth_data = await llm_client.authenticate(form_data.username, form_data.password)
+        upstream_token = auth_data.get("token")
+        if not upstream_token:
+            raise ValueError("No token returned from upstream")
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail=f"Upstream authentication failed: {str(e)}",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # 2. Find or Create Local User
+    user = await get_user_by_email(db, form_data.username)
     
+    if not user:
+        # Auto-register if not exists (since they passed upstream auth)
+        user = User(
+            email=form_data.username,
+            password_hash=hash_password(form_data.password), # Store hash for local fallback/consistency
+            name=form_data.username.split("@")[0],
+            upstream_token=upstream_token,
+            upstream_password=form_data.password # Store plain for re-auth (per requirements)
+        )
+        db.add(user)
+    else:
+        # Update existing user's upstream credentials
+        user.upstream_token = upstream_token
+        user.upstream_password = form_data.password
+        # Also update local password hash to keep in sync
+        user.password_hash = hash_password(form_data.password)
+        db.add(user)
+    
+    await db.commit()
+    await db.refresh(user)
+    
+    # 3. Issue Local Tokens
     access_token = create_access_token(
         data={"sub": user.id, "email": user.email},
         settings=settings,

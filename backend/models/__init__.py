@@ -7,6 +7,7 @@ from backend.models.glossary import (
     JobGlossary,
     SystemGlossary,
 )
+from backend.models.log import JobLog
 
 __all__ = [
     "User",
@@ -16,5 +17,6 @@ __all__ = [
     "GlossaryTerm",
     "JobGlossary",
     "SystemGlossary",
+    "JobLog",
 ]
 

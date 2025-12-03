@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status, BackgroundTasks
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +22,8 @@ from backend.api.schemas.job import (
 )
 from backend.models.job import TranslationJob, JobStatus
 from backend.models.glossary import JobGlossary
+from backend.models.log import JobLog
+from backend.translation.runner import JobRunner
 
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
@@ -33,6 +35,7 @@ async def create_job(
     db: DbSessionDep,
     storage: StorageDep,
     settings: SettingsDep,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     source_language: str = Form(default="ko"),
     target_language: str = Form(default="en"),
@@ -85,7 +88,14 @@ async def create_job(
     file_path = await storage.save_upload(content, file.filename, job.id)
     job.source_file_path = str(file_path)
     
-    await db.flush()
+    await db.commit()
+    
+    # Start job in background
+    with open("/tmp/debug_logs.txt", "a") as f:
+        f.write(f"[{datetime.utcnow()}] Adding background task for job {job.id}\n")
+    
+    runner = JobRunner(job.id)
+    background_tasks.add_task(runner.run)
     
     return job
 
@@ -409,3 +419,44 @@ async def resolve_glossary_conflict(
     
     return {"message": "Conflict resolved"}
 
+
+@router.get("/{job_id}/logs")
+async def get_job_logs(
+    job_id: str,
+    current_user: CurrentUserDep,
+    db: DbSessionDep,
+) -> list[dict]:
+    """Get logs for a job."""
+    # Check job exists and belongs to user
+    result = await db.execute(
+        select(TranslationJob).where(
+            TranslationJob.id == job_id,
+            TranslationJob.user_id == current_user.id,
+        )
+    )
+    job = result.scalar_one_or_none()
+    
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found",
+        )
+    
+    # Get logs
+    logs_result = await db.execute(
+        select(JobLog)
+        .where(JobLog.job_id == job_id)
+        .order_by(JobLog.created_at)
+    )
+    logs = logs_result.scalars().all()
+    
+    return [
+        {
+            "id": log.id,
+            "message": log.message,
+            "level": log.level,
+            "phase": log.phase,
+            "created_at": log.created_at,
+        }
+        for log in logs
+    ]

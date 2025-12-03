@@ -92,6 +92,13 @@ class TranslationJob(Base):
         cascade="all, delete-orphan",
     )
     
+    logs: Mapped[list["JobLog"]] = relationship(
+        "JobLog",
+        back_populates="job",
+        cascade="all, delete-orphan",
+        order_by="JobLog.created_at",
+    )
+    
     @property
     def progress_percent(self) -> float:
         """Calculate progress percentage."""
@@ -117,4 +124,5 @@ class TranslationJob(Base):
 # Import at bottom to avoid circular imports
 from backend.models.user import User
 from backend.models.glossary import JobGlossary
+from backend.models.log import JobLog
 

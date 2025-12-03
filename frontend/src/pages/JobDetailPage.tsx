@@ -6,6 +6,7 @@ import Layout from '../components/layout/Layout';
 import Button from '../components/ui/Button';
 import Card, { CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import Progress from '../components/ui/Progress';
+import LogPanel from '../components/ui/LogPanel';
 import {
   ArrowLeft,
   Download,
@@ -45,44 +46,52 @@ function StatCard({ label, value, icon: Icon }: { label: string; value: string; 
 }
 
 export default function JobDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id: jobId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const { data: job, isLoading, error } = useQuery({
-    queryKey: ['job', id],
-    queryFn: () => jobsApi.get(id!),
-    enabled: !!id,
+    queryKey: ['jobs', jobId],
+    queryFn: () => jobsApi.get(jobId!),
+    enabled: !!jobId,
     refetchInterval: (query) => {
-      // Faster refresh while processing
-      const data = query.state.data;
-      if (data?.status === 'processing' || data?.status === 'pending') {
-        return 3000;
+      const status = query.state.data?.status;
+      return status === 'processing' || status === 'pending' ? 1000 : false;
+    },
+  });
+
+  const { data: logs } = useQuery({
+    queryKey: ['job-logs', jobId],
+    queryFn: () => jobsApi.getLogs(jobId!),
+    enabled: !!jobId,
+    refetchInterval: () => {
+      if (job?.status === 'processing' || job?.status === 'pending') {
+        return 2000;
       }
       return false;
     },
   });
 
   const pauseMutation = useMutation({
-    mutationFn: () => jobsApi.pause(id!),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['job', id] }),
+    mutationFn: () => jobsApi.pause(jobId!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['jobs', jobId] }),
   });
 
   const resumeMutation = useMutation({
-    mutationFn: () => jobsApi.resume(id!),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['job', id] }),
+    mutationFn: () => jobsApi.resume(jobId!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['jobs', jobId] }),
   });
 
   const cancelMutation = useMutation({
-    mutationFn: () => jobsApi.cancel(id!),
-    onSuccess: () => navigate('/'),
+    mutationFn: () => jobsApi.cancel(jobId!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['jobs', jobId] }),
   });
 
   if (isLoading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="w-8 h-8 text-accent animate-spin" />
+        <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+          <Loader2 className="w-8 h-8 animate-spin text-accent" />
         </div>
       </Layout>
     );
@@ -91,12 +100,12 @@ export default function JobDetailPage() {
   if (error || !job) {
     return (
       <Layout>
-        <div className="text-center py-24">
-          <AlertCircle className="w-12 h-12 text-danger mx-auto mb-4" />
-          <p className="text-foreground">Job not found</p>
-          <Button variant="secondary" className="mt-4" onClick={() => navigate('/')}>
-            Back to Dashboard
-          </Button>
+        <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+          <div className="text-center">
+            <AlertCircle className="w-12 h-12 text-danger mx-auto mb-4" />
+            <h2 className="text-lg font-semibold text-foreground">Error loading job</h2>
+            <p className="text-foreground-muted">Please try again later</p>
+          </div>
         </div>
       </Layout>
     );
@@ -107,7 +116,7 @@ export default function JobDetailPage() {
 
   return (
     <Layout>
-      {/* Header */}
+      {/* ... (Header) ... */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
@@ -244,43 +253,55 @@ export default function JobDetailPage() {
         />
       </div>
 
-      {/* Timeline */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Timeline</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <div className="w-2 h-2 bg-success rounded-full" />
-              <div>
-                <p className="text-sm font-medium text-foreground">Created</p>
-                <p className="text-sm text-foreground-subtle">{formatDate(job.created_at)}</p>
-              </div>
-            </div>
-            {job.started_at && (
-              <div className="flex items-center gap-4">
-                <div className="w-2 h-2 bg-accent rounded-full" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">Started Processing</p>
-                  <p className="text-sm text-foreground-subtle">{formatDate(job.started_at)}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Log Panel */}
+        <div className="lg:col-span-2">
+          <LogPanel
+            logs={logs || []}
+            isLoading={job.status === 'processing' || job.status === 'pending'}
+          />
+        </div>
+
+        {/* Timeline */}
+        <div className="lg:col-span-1">
+          <Card className="h-full">
+            <CardHeader>
+              <CardTitle>Timeline</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-2 h-2 bg-success rounded-full" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Created</p>
+                    <p className="text-sm text-foreground-subtle">{formatDate(job.created_at)}</p>
+                  </div>
                 </div>
+                {job.started_at && (
+                  <div className="flex items-center gap-4">
+                    <div className="w-2 h-2 bg-accent rounded-full" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Started Processing</p>
+                      <p className="text-sm text-foreground-subtle">{formatDate(job.started_at)}</p>
+                    </div>
+                  </div>
+                )}
+                {job.completed_at && (
+                  <div className="flex items-center gap-4">
+                    <div className={cn('w-2 h-2 rounded-full', job.status === 'completed' ? 'bg-success' : 'bg-danger')} />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        {job.status === 'completed' ? 'Completed' : 'Ended'}
+                      </p>
+                      <p className="text-sm text-foreground-subtle">{formatDate(job.completed_at)}</p>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-            {job.completed_at && (
-              <div className="flex items-center gap-4">
-                <div className={cn('w-2 h-2 rounded-full', job.status === 'completed' ? 'bg-success' : 'bg-danger')} />
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    {job.status === 'completed' ? 'Completed' : 'Ended'}
-                  </p>
-                  <p className="text-sm text-foreground-subtle">{formatDate(job.completed_at)}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </Layout>
   );
 }

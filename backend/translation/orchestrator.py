@@ -12,7 +12,7 @@ import asyncio
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable
+from typing import Any, Callable, Awaitable
 
 from openai import AsyncOpenAI
 
@@ -91,12 +91,16 @@ class TranslationOrchestrator:
     
     def __init__(
         self,
+        user: Any, # Typed as Any to avoid circular imports, but effectively User model
+        db_session: Any = None, # Optional db session for re-auth updates
         glossary_manager: GlossaryManager | None = None,
-        progress_callback: Callable[[TranslationProgress], None] | None = None,
+        progress_callback: Callable[[TranslationProgress], Awaitable[None] | None] | None = None,
     ) -> None:
         """Initialize orchestrator.
         
         Args:
+            user: The user who owns the job (for auth)
+            db_session: Database session for updating user credentials
             glossary_manager: Optional glossary manager for term consistency
             progress_callback: Optional callback for progress updates
         """
@@ -113,11 +117,9 @@ class TranslationOrchestrator:
         self._previous_tail: str = ""
         self._should_pause = False
         
-        # OpenAI-compatible client
-        self._client = AsyncOpenAI(
-            base_url=self._settings.llm_api_url,
-            api_key=self._settings.llm_api_key,
-        )
+        # Upstream LLM Client
+        from backend.translation.llm_client import UpstreamLLMClient
+        self._client = UpstreamLLMClient(user=user, db_session=db_session)
     
     async def translate_units(
         self,
@@ -135,7 +137,7 @@ class TranslationOrchestrator:
         """
         self._progress.total_units = len(units)
         self._progress.phase = TranslationPhase.TRANSLATING
-        self._notify_progress()
+        await self._notify_progress()
         
         translated: list[TranslationUnit] = []
         
@@ -146,12 +148,12 @@ class TranslationOrchestrator:
         for i in range(start_from, len(units)):
             if self._should_pause:
                 self._progress.phase = TranslationPhase.PAUSED
-                self._notify_progress()
+                await self._notify_progress()
                 break
             
             unit = units[i]
             self._progress.current_unit = i
-            self._notify_progress()
+            await self._notify_progress()
             
             try:
                 result = await self._translate_unit(unit)
@@ -171,14 +173,14 @@ class TranslationOrchestrator:
             except Exception as e:
                 self._progress.errors.append(f"Unit {i}: {str(e)}")
                 self._progress.phase = TranslationPhase.FAILED
-                self._notify_progress()
+                await self._notify_progress()
                 raise
             
-            self._notify_progress()
+            await self._notify_progress()
         
         if not self._should_pause:
             self._progress.phase = TranslationPhase.COMPLETED
-            self._notify_progress()
+            await self._notify_progress()
         
         return translated
     
@@ -225,7 +227,7 @@ class TranslationOrchestrator:
             except Exception as e:
                 last_error = str(e)
                 self._progress.current_unit_retries = attempt + 1
-                self._notify_progress()
+                await self._notify_progress()
                 
                 # Exponential backoff
                 delay = min(
@@ -291,19 +293,24 @@ class TranslationOrchestrator:
         Returns:
             Dict with 'content', 'input_tokens', 'output_tokens'
         """
-        response = await self._client.chat.completions.create(
+        response = await self._client.chat_completion(
             model=self._settings.llm_model,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
-            ],
-            temperature=0.3,
+            ]
         )
         
+        # Extract content and usage from response
+        # Response format is OpenAI-compatible dict (from UpstreamLLMClient)
+        choice = response["choices"][0]
+        message = choice["message"]
+        usage = response.get("usage", {})
+        
         return {
-            "content": response.choices[0].message.content or "",
-            "input_tokens": response.usage.prompt_tokens if response.usage else 0,
-            "output_tokens": response.usage.completion_tokens if response.usage else 0,
+            "content": message.get("content", ""),
+            "input_tokens": usage.get("prompt_tokens", 0),
+            "output_tokens": usage.get("completion_tokens", 0),
         }
     
     def _update_previous_tail(self, translated_text: str) -> None:
@@ -320,10 +327,12 @@ class TranslationOrchestrator:
             max_tokens,
         )
     
-    def _notify_progress(self) -> None:
+    async def _notify_progress(self) -> None:
         """Notify progress callback if set."""
         if self._progress_callback:
-            self._progress_callback(self._progress)
+            result = self._progress_callback(self._progress)
+            if asyncio.iscoroutine(result):
+                await result
     
     def pause(self) -> None:
         """Request pause after current unit completes."""
