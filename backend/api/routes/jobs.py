@@ -56,10 +56,10 @@ async def create_job(
 
     # Check file extension
     filename_lower = file.filename.lower()
-    if not (filename_lower.endswith(".pdf") or filename_lower.endswith(".docx")):
+    if not (filename_lower.endswith(".pdf") or filename_lower.endswith(".docx") or filename_lower.endswith(".txt")):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only PDF and DOCX files are supported",
+            detail="Only PDF, DOCX, and TXT files are supported",
         )
 
     # Read file content
@@ -74,7 +74,12 @@ async def create_job(
         )
 
     # Create job record first to get ID
-    source_format = "pdf" if filename_lower.endswith(".pdf") else "docx"
+    if filename_lower.endswith(".pdf"):
+        source_format = "pdf"
+    elif filename_lower.endswith(".txt"):
+        source_format = "txt"
+    else:
+        source_format = "docx"
 
     job = TranslationJob(
         user_id=current_user.id,

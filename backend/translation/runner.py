@@ -15,6 +15,7 @@ from backend.models.log import JobLog
 from backend.translation.chunking.chunker import chunk_document
 from backend.translation.export.docx_writer import write_docx
 from backend.translation.ingestion.docx_parser import parse_docx
+from backend.translation.ingestion.txt_parser import parse_txt
 from backend.translation.orchestrator import (
     TranslationOrchestrator,
     TranslationPhase,
@@ -60,7 +61,11 @@ class JobRunner:
                 if not job.source_file_path:
                     raise ValueError("Source file path not set")
 
-                document = await asyncio.to_thread(parse_docx, job.source_file_path)
+                # Select parser based on source format
+                if job.source_format == "txt":
+                    document = await asyncio.to_thread(parse_txt, job.source_file_path)
+                else:
+                    document = await asyncio.to_thread(parse_docx, job.source_file_path)
                 await self._log(db, f"Parsed document: {len(document.sections)} sections", phase="Ingestion")
 
                 # 2. Chunking
@@ -107,7 +112,7 @@ class JobRunner:
                 output_dir = Path(job.source_file_path).parent
                 output_path = output_dir / output_filename
 
-                await asyncio.to_thread(write_docx, reconstructed_doc, output_path)
+                await asyncio.to_thread(write_docx, reconstructed_doc.document, output_path)
 
                 job.output_file_path = str(output_path)
                 job.output_format = "docx"
