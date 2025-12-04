@@ -1,9 +1,12 @@
-import httpx
 from typing import Any, Dict, List, Optional
+
+import httpx
+from sqlalchemy import update
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from backend.core.config import get_settings
 from backend.models.user import User
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import update
+
 
 class UpstreamLLMClient:
     def __init__(self, user: Optional[User] = None, db_session: Optional[AsyncSession] = None):
@@ -37,7 +40,7 @@ class UpstreamLLMClient:
         payload = {
             "model": model,
             "messages": messages,
-            "stream": False 
+            "stream": False
         }
 
         headers = {
@@ -51,9 +54,9 @@ class UpstreamLLMClient:
                     self.settings.upstream_completion_url,
                     json=payload,
                     headers=headers,
-                    timeout=self.settings.timeout_seconds if hasattr(self.settings, 'timeout_seconds') else 120
+                    timeout=self.settings.timeout_seconds
                 )
-                
+
                 if response.status_code == 401:
                     # Token expired, attempt re-auth
                     await self._reauthenticate()
@@ -64,7 +67,7 @@ class UpstreamLLMClient:
                         self.settings.upstream_completion_url,
                         json=payload,
                         headers=headers,
-                        timeout=self.settings.timeout_seconds if hasattr(self.settings, 'timeout_seconds') else 120
+                        timeout=self.settings.timeout_seconds
                     )
 
                 response.raise_for_status()
@@ -72,7 +75,7 @@ class UpstreamLLMClient:
 
             except httpx.HTTPStatusError as e:
                 raise RuntimeError(f"Upstream API error: {e.response.text}") from e
-            except Exception as e:
+            except httpx.RequestError as e:
                 raise RuntimeError(f"LLM request failed: {str(e)}") from e
 
     async def _reauthenticate(self):
@@ -85,13 +88,13 @@ class UpstreamLLMClient:
         try:
             auth_data = await self.authenticate(self.user.email, self.user.upstream_password)
             new_token = auth_data.get("token")
-            
+
             if not new_token:
                 raise ValueError("No token in re-auth response")
 
             # Update in-memory user object
             self.user.upstream_token = new_token
-            
+
             # Update database if session is available
             if self.db_session:
                 stmt = (
@@ -101,6 +104,6 @@ class UpstreamLLMClient:
                 )
                 await self.db_session.execute(stmt)
                 await self.db_session.commit()
-                
+
         except Exception as e:
             raise RuntimeError(f"Re-authentication failed: {str(e)}") from e

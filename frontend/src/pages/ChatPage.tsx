@@ -36,7 +36,6 @@ interface Room {
 }
 
 export default function ChatPage() {
-    // Chat rooms state
     const [rooms, setRooms] = useState<Room[]>([
         {
             id: "default",
@@ -49,7 +48,6 @@ export default function ChatPage() {
     const [activeRoomId, setActiveRoomId] = useState("default");
     const [showSidebar, setShowSidebar] = useState(true);
 
-    // UI state
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -58,7 +56,6 @@ export default function ChatPage() {
     const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
     const [editingRoomName, setEditingRoomName] = useState("");
 
-    // Config state
     const { settings } = useChatSettings();
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -70,7 +67,6 @@ export default function ChatPage() {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [activeRoom?.messages]);
 
-    // Room management
     const createRoom = () => {
         const newRoom: Room = {
             id: generateId(),
@@ -112,7 +108,6 @@ export default function ChatPage() {
         updateRoom(activeRoomId, { messages: newMessages });
     };
 
-    // Message editing
     const startEditMessage = (msg: Message) => {
         setEditingMessageId(msg.id);
         setEditingContent(msg.content);

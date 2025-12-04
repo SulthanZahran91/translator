@@ -11,9 +11,9 @@ from backend.core.database import Base
 
 class User(Base):
     """User account model."""
-    
+
     __tablename__ = "users"
-    
+
     id: Mapped[str] = mapped_column(
         String(36),
         primary_key=True,
@@ -22,11 +22,11 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     name: Mapped[str] = mapped_column(String(255))
-    
+
     # Upstream LLM Credentials
     upstream_token: Mapped[str | None] = mapped_column(String(512), nullable=True)
     upstream_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
@@ -36,7 +36,7 @@ class User(Base):
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
     )
-    
+
     # Relationships
     jobs: Mapped[list["TranslationJob"]] = relationship(
         "TranslationJob",
@@ -51,6 +51,6 @@ class User(Base):
 
 
 # Import at bottom to avoid circular imports
-from backend.models.job import TranslationJob
 from backend.models.glossary import UserGlossary
+from backend.models.job import TranslationJob
 

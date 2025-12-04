@@ -1,7 +1,7 @@
 """Glossaries API routes."""
 
 from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import DbSessionDep
@@ -19,7 +19,6 @@ from backend.api.schemas.glossary import (
 )
 from backend.models.glossary import GlossaryTerm, UserGlossary
 
-
 router = APIRouter(prefix="/glossaries", tags=["Glossaries"])
 
 
@@ -36,13 +35,13 @@ async def get_user_glossary(
         )
     )
     glossary = result.scalar_one_or_none()
-    
+
     if not glossary:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Glossary not found",
         )
-    
+
     return glossary
 
 
@@ -61,7 +60,7 @@ async def create_glossary(
     )
     db.add(glossary)
     await db.flush()
-    
+
     return glossary
 
 
@@ -77,7 +76,7 @@ async def list_glossaries(
         .order_by(UserGlossary.name)
     )
     glossaries = list(result.scalars().all())
-    
+
     # Get term counts
     responses = []
     for glossary in glossaries:
@@ -86,7 +85,7 @@ async def list_glossaries(
             .where(GlossaryTerm.glossary_id == glossary.id)
         )
         term_count = count_result.scalar() or 0
-        
+
         responses.append(GlossaryResponse(
             id=glossary.id,
             name=glossary.name,
@@ -96,7 +95,7 @@ async def list_glossaries(
             created_at=glossary.created_at,
             updated_at=glossary.updated_at,
         ))
-    
+
     return GlossaryListResponse(
         glossaries=responses,
         total=len(responses),
@@ -111,13 +110,13 @@ async def get_glossary(
 ) -> GlossaryResponse:
     """Get a specific glossary."""
     glossary = await get_user_glossary(db, glossary_id, current_user.id)
-    
+
     count_result = await db.execute(
         select(func.count(GlossaryTerm.id))
         .where(GlossaryTerm.glossary_id == glossary.id)
     )
     term_count = count_result.scalar() or 0
-    
+
     return GlossaryResponse(
         id=glossary.id,
         name=glossary.name,
@@ -138,22 +137,22 @@ async def update_glossary(
 ) -> GlossaryResponse:
     """Update a glossary."""
     glossary = await get_user_glossary(db, glossary_id, current_user.id)
-    
+
     if data.name is not None:
         glossary.name = data.name
     if data.description is not None:
         glossary.description = data.description
     if data.domain is not None:
         glossary.domain = data.domain
-    
+
     await db.flush()
-    
+
     count_result = await db.execute(
         select(func.count(GlossaryTerm.id))
         .where(GlossaryTerm.glossary_id == glossary.id)
     )
     term_count = count_result.scalar() or 0
-    
+
     return GlossaryResponse(
         id=glossary.id,
         name=glossary.name,
@@ -188,20 +187,20 @@ async def list_terms(
 ) -> TermListResponse:
     """List terms in a glossary."""
     await get_user_glossary(db, glossary_id, current_user.id)
-    
+
     query = select(GlossaryTerm).where(GlossaryTerm.glossary_id == glossary_id)
-    
+
     if search:
         query = query.where(
             GlossaryTerm.source_term.ilike(f"%{search}%") |
             GlossaryTerm.target_term.ilike(f"%{search}%")
         )
-    
+
     query = query.order_by(GlossaryTerm.source_term)
-    
+
     result = await db.execute(query)
     terms = list(result.scalars().all())
-    
+
     return TermListResponse(
         terms=[TermResponse.model_validate(t) for t in terms],
         total=len(terms),
@@ -217,7 +216,7 @@ async def create_term(
 ) -> GlossaryTerm:
     """Add a term to a glossary."""
     await get_user_glossary(db, glossary_id, current_user.id)
-    
+
     # Check for duplicate
     existing = await db.execute(
         select(GlossaryTerm).where(
@@ -230,7 +229,7 @@ async def create_term(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Term already exists in this glossary",
         )
-    
+
     term = GlossaryTerm(
         glossary_id=glossary_id,
         source_term=data.source_term,
@@ -243,7 +242,7 @@ async def create_term(
     )
     db.add(term)
     await db.flush()
-    
+
     return term
 
 
@@ -257,7 +256,7 @@ async def update_term(
 ) -> GlossaryTerm:
     """Update a term."""
     await get_user_glossary(db, glossary_id, current_user.id)
-    
+
     result = await db.execute(
         select(GlossaryTerm).where(
             GlossaryTerm.id == term_id,
@@ -265,13 +264,13 @@ async def update_term(
         )
     )
     term = result.scalar_one_or_none()
-    
+
     if not term:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Term not found",
         )
-    
+
     if data.target_term is not None:
         term.target_term = data.target_term
     if data.context is not None:
@@ -280,9 +279,9 @@ async def update_term(
         term.domain = data.domain
     if data.definition is not None:
         term.definition = data.definition
-    
+
     await db.flush()
-    
+
     return term
 
 
@@ -295,7 +294,7 @@ async def delete_term(
 ):
     """Delete a term."""
     await get_user_glossary(db, glossary_id, current_user.id)
-    
+
     result = await db.execute(
         select(GlossaryTerm).where(
             GlossaryTerm.id == term_id,
@@ -303,13 +302,13 @@ async def delete_term(
         )
     )
     term = result.scalar_one_or_none()
-    
+
     if not term:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Term not found",
         )
-    
+
     await db.delete(term)
     await db.flush()
 
@@ -323,9 +322,9 @@ async def import_terms(
 ) -> TermListResponse:
     """Bulk import terms into a glossary."""
     await get_user_glossary(db, glossary_id, current_user.id)
-    
+
     imported_terms: list[GlossaryTerm] = []
-    
+
     for term_data in data.terms:
         # Skip duplicates
         existing = await db.execute(
@@ -336,7 +335,7 @@ async def import_terms(
         )
         if existing.scalar_one_or_none():
             continue
-        
+
         term = GlossaryTerm(
             glossary_id=glossary_id,
             source_term=term_data.source_term,
@@ -349,9 +348,9 @@ async def import_terms(
         )
         db.add(term)
         imported_terms.append(term)
-    
+
     await db.flush()
-    
+
     return TermListResponse(
         terms=[TermResponse.model_validate(t) for t in imported_terms],
         total=len(imported_terms),

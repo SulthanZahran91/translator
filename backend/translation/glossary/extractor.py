@@ -26,48 +26,48 @@ class ExtractionResult:
 
 class GlossaryExtractor:
     """Extracts glossary terms from LLM responses."""
-    
+
     # Pattern to match <glossary>source|target</glossary> tags
     GLOSSARY_PATTERN = re.compile(
         r"<glossary>([^|<>]+)\|([^<>]+)</glossary>",
         re.IGNORECASE
     )
-    
+
     def __init__(self, existing_glossary: Glossary | None = None) -> None:
         """Initialize extractor.
-        
+
         Args:
             existing_glossary: Optional existing glossary to check for conflicts
         """
         self._glossary = existing_glossary or Glossary(name="extracted")
         self._conflicts: dict[str, GlossaryConflict] = {}
-    
+
     def extract(self, response_text: str, unit_index: int) -> ExtractionResult:
         """Extract glossary terms from an LLM response.
-        
+
         Args:
             response_text: The LLM's translation response
             unit_index: Index of the translation unit (for tracking)
-            
+
         Returns:
             ExtractionResult with extracted terms, conflicts, and cleaned text
         """
         terms: list[GlossaryTerm] = []
         new_conflicts: list[GlossaryConflict] = []
-        
+
         # Find all glossary tags
         matches = list(self.GLOSSARY_PATTERN.finditer(response_text))
-        
+
         for match in matches:
             source_term = match.group(1).strip()
             target_term = match.group(2).strip()
-            
+
             if not source_term or not target_term:
                 continue
-            
+
             # Check for existing term with different translation
             existing = self._glossary.get_term(source_term)
-            
+
             if existing and existing.target_term != target_term:
                 # Conflict detected
                 conflict = self._get_or_create_conflict(source_term)
@@ -93,32 +93,32 @@ class GlossaryExtractor:
                 )
                 terms.append(term)
                 self._glossary.add_term(term)
-        
+
         # Remove glossary tags from response
         cleaned_text = self.GLOSSARY_PATTERN.sub("", response_text)
-        
+
         return ExtractionResult(
             terms=terms,
             conflicts=new_conflicts,
             cleaned_text=cleaned_text.strip(),
         )
-    
+
     def _get_or_create_conflict(self, source_term: str) -> GlossaryConflict:
         """Get existing conflict or create new one."""
         if source_term not in self._conflicts:
             self._conflicts[source_term] = GlossaryConflict(source_term=source_term)
         return self._conflicts[source_term]
-    
+
     @property
     def glossary(self) -> Glossary:
         """Get the current glossary."""
         return self._glossary
-    
+
     @property
     def conflicts(self) -> list[GlossaryConflict]:
         """Get all detected conflicts."""
         return list(self._conflicts.values())
-    
+
     @property
     def unresolved_conflicts(self) -> list[GlossaryConflict]:
         """Get unresolved conflicts only."""
@@ -131,12 +131,12 @@ def extract_glossary_terms(
     unit_index: int = 0,
 ) -> ExtractionResult:
     """Convenience function to extract glossary terms.
-    
+
     Args:
         response_text: The LLM's translation response
         existing_glossary: Optional existing glossary
         unit_index: Index of the translation unit
-        
+
     Returns:
         ExtractionResult with extracted terms and cleaned text
     """
@@ -146,10 +146,10 @@ def extract_glossary_terms(
 
 def clean_response(response_text: str) -> str:
     """Remove glossary tags from response text.
-    
+
     Args:
         response_text: Text potentially containing glossary tags
-        
+
     Returns:
         Text with glossary tags removed
     """

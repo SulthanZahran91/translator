@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-import pytest
-
 from backend.core.config import Settings
 
 
@@ -12,7 +10,7 @@ def test_default_settings():
     settings = Settings(
         storage_path=Path("./storage/test"),
     )
-    
+
     assert settings.app_name == "Document Translator"
     assert settings.debug is False
     assert settings.api_v1_prefix == "/api/v1"
@@ -25,7 +23,7 @@ def test_settings_directories():
     settings = Settings(
         storage_path=Path("./storage/test"),
     )
-    
+
     assert settings.uploads_dir == Path("./storage/test/uploads")
     assert settings.outputs_dir == Path("./storage/test/outputs")
     assert settings.checkpoints_dir == Path("./storage/test/checkpoints")
@@ -38,9 +36,9 @@ def test_ensure_directories(tmp_path: Path):
     settings = Settings(
         storage_path=tmp_path / "storage",
     )
-    
+
     settings.ensure_directories()
-    
+
     assert settings.uploads_dir.exists()
     assert settings.outputs_dir.exists()
     assert settings.checkpoints_dir.exists()
@@ -55,7 +53,7 @@ def test_llm_settings():
         llm_api_key="test-key",
         llm_model="custom-model",
     )
-    
+
     assert settings.llm_api_url == "http://custom:8080/v1"
     assert settings.llm_api_key == "test-key"
     assert settings.llm_model == "custom-model"

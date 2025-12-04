@@ -54,15 +54,15 @@ async def test_engine(test_settings: Settings) -> Any:
         echo=False,
         future=True,
     )
-    
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
+
     yield engine
-    
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
-    
+
     await engine.dispose()
 
 
@@ -74,7 +74,7 @@ async def db_session(test_engine: Any) -> AsyncGenerator[AsyncSession, None]:
         class_=AsyncSession,
         expire_on_commit=False,
     )
-    
+
     async with async_session() as session:
         yield session
 
@@ -85,37 +85,37 @@ async def client(
     db_session: AsyncSession,
 ) -> AsyncGenerator[AsyncClient, None]:
     """Provide an async test client."""
-    
+
     async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
         yield db_session
-    
+
     def override_get_settings() -> Settings:
         return test_settings
-    
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_settings] = override_get_settings
-    
+
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
     ) as ac:
         yield ac
-    
+
     app.dependency_overrides.clear()
 
 
 @pytest.fixture
 def sync_client(test_settings: Settings) -> Generator[TestClient, None, None]:
     """Provide a synchronous test client."""
-    
+
     def override_get_settings() -> Settings:
         return test_settings
-    
+
     app.dependency_overrides[get_settings] = override_get_settings
-    
+
     with TestClient(app) as c:
         yield c
-    
+
     app.dependency_overrides.clear()
 
 

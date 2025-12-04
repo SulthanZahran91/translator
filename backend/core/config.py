@@ -19,19 +19,19 @@ class Settings(BaseSettings):
     # Application
     app_name: str = "Document Translator"
     debug: bool = False
-    
+
     # API
     api_v1_prefix: str = "/api/v1"
-    
+
     # Database
     database_url: str = "sqlite+aiosqlite:///./storage/db/translator.db"
-    
+
     # Authentication
     secret_key: str = "change-this-in-production-use-a-real-secret-key"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24  # 24 hours
     refresh_token_expire_days: int = 30
-    
+
     # LLM Configuration
     llm_api_url: str = "http://localhost:8000/v1"
     llm_api_key: str = "not-needed-for-local"
@@ -39,43 +39,44 @@ class Settings(BaseSettings):
     llm_max_retries: int = 10
     llm_retry_base_delay: float = 1.0
     llm_retry_max_delay: float = 60.0
-    
+
     # Upstream LLM Integration
     upstream_auth_url: str = "http://localhost:8000/auth"
     upstream_completion_url: str = "http://localhost:8000/completion"
-    
+    timeout_seconds: float = 120.0
+
     # Translation Pipeline
     max_tokens_per_unit: int = 25000
     glossary_token_budget: int = 3000
     context_tail_tokens: int = 2000
     checkpoint_interval: int = 10
-    
+
     # Storage
     storage_type: Literal["local", "s3"] = "local"
     storage_path: Path = Path("./storage")
     max_upload_size_mb: int = 50
-    
+
     # Directories (derived from storage_path)
     @property
     def uploads_dir(self) -> Path:
         return self.storage_path / "uploads"
-    
+
     @property
     def outputs_dir(self) -> Path:
         return self.storage_path / "outputs"
-    
+
     @property
     def checkpoints_dir(self) -> Path:
         return self.storage_path / "checkpoints"
-    
+
     @property
     def temp_dir(self) -> Path:
         return self.storage_path / "temp"
-    
+
     @property
     def db_dir(self) -> Path:
         return self.storage_path / "db"
-    
+
     def ensure_directories(self) -> None:
         """Create all necessary storage directories."""
         for directory in [

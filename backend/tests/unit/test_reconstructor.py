@@ -1,13 +1,9 @@
 """Tests for document reconstructor."""
 
-import pytest
 
-from backend.translation.reconstruction.reconstructor import (
-    Reconstructor,
-    reconstruct_document,
-)
 from backend.translation.ir import (
     Document,
+    ElementReference,
     Paragraph,
     Section,
     Table,
@@ -15,13 +11,15 @@ from backend.translation.ir import (
     TableRow,
     TextRun,
     TranslationUnit,
-    ElementReference,
+)
+from backend.translation.reconstruction.reconstructor import (
+    reconstruct_document,
 )
 
 
 class TestReconstructor:
     """Tests for Reconstructor class."""
-    
+
     def test_reconstruct_single_paragraph(self):
         """Test reconstructing a single paragraph."""
         doc = Document(
@@ -31,7 +29,7 @@ class TestReconstructor:
                 ]),
             ]
         )
-        
+
         units = [
             TranslationUnit(
                 source_text='<p id="p1">안녕하세요</p>',
@@ -43,13 +41,13 @@ class TestReconstructor:
                 )],
             ),
         ]
-        
+
         result = reconstruct_document(doc, units)
-        
+
         assert result.elements_updated == 1
         assert len(result.elements_failed) == 0
         assert doc.sections[0].elements[0].text == "Hello"
-    
+
     def test_reconstruct_multiple_paragraphs(self):
         """Test reconstructing multiple paragraphs."""
         doc = Document(
@@ -60,19 +58,19 @@ class TestReconstructor:
                 ]),
             ]
         )
-        
+
         units = [
             TranslationUnit(
                 translated_text='<p id="p1">First</p>\n<p id="p2">Second</p>',
             ),
         ]
-        
+
         result = reconstruct_document(doc, units)
-        
+
         assert result.elements_updated == 2
         assert doc.sections[0].elements[0].text == "First"
         assert doc.sections[0].elements[1].text == "Second"
-    
+
     def test_reconstruct_preserves_formatting(self):
         """Test that formatting is preserved during reconstruction."""
         doc = Document(
@@ -88,15 +86,15 @@ class TestReconstructor:
                 ]),
             ]
         )
-        
+
         units = [
             TranslationUnit(
                 translated_text='<p id="p1">Translated text here</p>',
             ),
         ]
-        
-        result = reconstruct_document(doc, units)
-        
+
+        reconstruct_document(doc, units)
+
         # Text should be updated
         para = doc.sections[0].elements[0]
         assert para.runs[0].text == "Translated text here"
@@ -104,7 +102,7 @@ class TestReconstructor:
         assert para.runs[0].bold is True
         # Subsequent runs should be emptied
         assert para.runs[1].text == ""
-    
+
     def test_reconstruct_table(self):
         """Test reconstructing a table."""
         doc = Document(
@@ -132,19 +130,19 @@ class TestReconstructor:
                 ]),
             ]
         )
-        
+
         units = [
             TranslationUnit(
                 translated_text='<table id="t1"><tr><td id="c1">Cell1</td><td id="c2">Cell2</td></tr></table>',
             ),
         ]
-        
-        result = reconstruct_document(doc, units)
-        
+
+        reconstruct_document(doc, units)
+
         table = doc.sections[0].elements[0]
         assert table.get_cell(0, 0).text == "Cell1"
         assert table.get_cell(0, 1).text == "Cell2"
-    
+
     def test_reconstruct_mixed_content(self):
         """Test reconstructing document with paragraphs and tables."""
         doc = Document(
@@ -168,7 +166,7 @@ class TestReconstructor:
                 ]),
             ]
         )
-        
+
         units = [
             TranslationUnit(
                 translated_text='''
@@ -178,15 +176,15 @@ class TestReconstructor:
                 ''',
             ),
         ]
-        
+
         result = reconstruct_document(doc, units)
-        
+
         assert result.elements_updated >= 3
         assert doc.sections[0].elements[0].text == "Introduction"
         table = doc.sections[0].elements[1]
         assert table.get_cell(0, 0).text == "Data"
         assert doc.sections[0].elements[2].text == "Conclusion"
-    
+
     def test_reconstruct_handles_missing_translation(self):
         """Test that missing translations are tracked."""
         doc = Document(
@@ -197,20 +195,20 @@ class TestReconstructor:
                 ]),
             ]
         )
-        
+
         units = [
             TranslationUnit(
                 translated_text='<p id="p1">Translated</p>',
                 # Note: p2 is not in the translation
             ),
         ]
-        
+
         result = reconstruct_document(doc, units)
-        
+
         assert result.elements_updated == 1
         # p2 should still have original text
         assert doc.sections[0].elements[1].text == "안 번역됨"
-    
+
     def test_reconstruct_multiple_units(self):
         """Test reconstructing from multiple translation units."""
         doc = Document(
@@ -222,7 +220,7 @@ class TestReconstructor:
                 ]),
             ]
         )
-        
+
         units = [
             TranslationUnit(
                 translated_text='<p id="p1">Paragraph 1</p>',
@@ -233,9 +231,9 @@ class TestReconstructor:
                 sequence_number=1,
             ),
         ]
-        
+
         result = reconstruct_document(doc, units)
-        
+
         assert result.elements_updated == 3
         assert doc.sections[0].elements[0].text == "Paragraph 1"
         assert doc.sections[0].elements[1].text == "Paragraph 2"

@@ -1,6 +1,7 @@
-import uvicorn
-import sys
 import os
+import sys
+
+import uvicorn
 
 if __name__ == "__main__":
     # Add the parent directory to sys.path to allow importing 'backend'

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class JobCreate(BaseModel):
@@ -23,21 +23,21 @@ class JobResponse(BaseModel):
     output_format: str | None
     source_language: str
     target_language: str
-    
+
     total_units: int
     completed_units: int
     progress_percent: float
     current_phase: str | None
-    
+
     total_input_tokens: int
     total_output_tokens: int
-    
+
     created_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
-    
+
     last_error: str | None
-    
+
     class Config:
         from_attributes = True
 

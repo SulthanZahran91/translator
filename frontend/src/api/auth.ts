@@ -7,7 +7,7 @@ export interface User {
 }
 
 export interface LoginRequest {
-  username: string; // OAuth2 uses 'username' for email
+  username: string;
   password: string;
 }
 
@@ -28,7 +28,7 @@ export const authApi = {
     const formData = new URLSearchParams();
     formData.append('username', data.username);
     formData.append('password', data.password);
-    
+
     const response = await apiClient.post<TokenResponse>('/auth/login', formData, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',

@@ -1,13 +1,14 @@
-from typing import AsyncGenerator, Dict, Any, List, Optional
 import json
+from typing import AsyncGenerator, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
 from openai import AsyncOpenAI
+from pydantic import BaseModel
 
-from backend.core.config import get_settings, Settings
 from backend.api.routes.auth import get_current_user
+from backend.core.config import Settings, get_settings
+from backend.models.user import User
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -30,14 +31,14 @@ class ChatSettings(BaseModel):
 @router.post("/completions")
 async def chat_completions(
     request: ChatCompletionRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     settings: Settings = Depends(get_settings)
 ):
     """
     Generate chat completions using the configured LLM.
     Proxies requests to the backend's LLM provider (e.g., OpenAI, Local LLM).
     """
-    
+
     # Use settings from request or default to global config
     model = request.model or settings.llm_model
     api_key = settings.llm_api_key
@@ -76,16 +77,16 @@ async def stream_generator(client: AsyncOpenAI, messages: List[Message], model: 
             temperature=temperature,
             stream=True
         )
-        
+
         async for chunk in stream:
             # Format as SSE data
             data = json.dumps(chunk.model_dump(), default=str)
             yield f"data: {data}\n\n"
-            
+
         yield "data: [DONE]\n\n"
-        
+
     except Exception as e:
-        # In a stream, we can't raise HTTP exception easily once started, 
+        # In a stream, we can't raise HTTP exception easily once started,
         # but we can yield an error message if needed or just stop.
         # For now, we'll log it (conceptually) and stop.
         yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -93,7 +94,7 @@ async def stream_generator(client: AsyncOpenAI, messages: List[Message], model: 
 
 @router.get("/settings", response_model=ChatSettings)
 async def get_chat_settings(
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     settings: Settings = Depends(get_settings)
 ):
     """Get current global chat settings."""
@@ -107,18 +108,15 @@ async def get_chat_settings(
 @router.put("/settings")
 async def update_chat_settings(
     new_settings: ChatSettings,
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     settings: Settings = Depends(get_settings)
 ):
     """
     Update global chat settings in-memory.
     Note: This does not persist to .env file.
     """
-    # specific to this app instance
     settings.llm_api_url = new_settings.llm_api_url
     settings.llm_api_key = new_settings.llm_api_key
     settings.llm_model = new_settings.llm_model
-    # Temperature is per-request usually, but if we wanted a global default we'd add it to Settings.
-    # For now, we just update what we can.
-    
+
     return {"status": "updated", "settings": new_settings}

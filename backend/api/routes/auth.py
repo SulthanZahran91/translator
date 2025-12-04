@@ -11,15 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.dependencies import DbSessionDep, SettingsDep
 from backend.api.schemas.auth import (
-    MessageResponse,
     TokenRefresh,
     TokenResponse,
     UserCreate,
-    UserLogin,
     UserResponse,
 )
 from backend.models.user import User
-
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -28,7 +25,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
 import hashlib
+
 import bcrypt
+
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
@@ -53,14 +52,14 @@ def create_access_token(
 ) -> str:
     """Create a JWT access token."""
     to_encode = data.copy()
-    
+
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
         expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
-    
+
     to_encode.update({"exp": expire, "type": "access"})
-    
+
     return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
 
 
@@ -72,7 +71,7 @@ def create_refresh_token(
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days)
     to_encode.update({"exp": expire, "type": "refresh"})
-    
+
     return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
 
 
@@ -99,7 +98,7 @@ async def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     try:
         payload = jwt.decode(
             token,
@@ -108,19 +107,19 @@ async def get_current_user(
         )
         user_id: str = payload.get("sub")
         token_type: str = payload.get("type")
-        
+
         if user_id is None:
             raise credentials_exception
         if token_type != "access":
             raise credentials_exception
-            
+
     except JWTError:
         raise credentials_exception
-    
+
     user = await get_user_by_id(db, user_id)
     if user is None:
         raise credentials_exception
-    
+
     return user
 
 
@@ -141,7 +140,7 @@ async def register(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
         )
-    
+
     # Create user
     user = User(
         email=user_data.email,
@@ -150,7 +149,7 @@ async def register(
     )
     db.add(user)
     await db.flush()
-    
+
     return user
 
 
@@ -161,13 +160,13 @@ async def login(
     settings: SettingsDep,
 ) -> TokenResponse:
     """Login and get access/refresh tokens.
-    
+
     Authenticates against the Upstream LLM service.
     """
     # 1. Authenticate with Upstream LLM
     from backend.translation.llm_client import UpstreamLLMClient
     llm_client = UpstreamLLMClient()
-    
+
     try:
         auth_data = await llm_client.authenticate(form_data.username, form_data.password)
         upstream_token = auth_data.get("token")
@@ -182,7 +181,7 @@ async def login(
 
     # 2. Find or Create Local User
     user = await get_user_by_email(db, form_data.username)
-    
+
     if not user:
         # Auto-register if not exists (since they passed upstream auth)
         user = User(
@@ -200,10 +199,10 @@ async def login(
         # Also update local password hash to keep in sync
         user.password_hash = hash_password(form_data.password)
         db.add(user)
-    
+
     await db.commit()
     await db.refresh(user)
-    
+
     # 3. Issue Local Tokens
     access_token = create_access_token(
         data={"sub": user.id, "email": user.email},
@@ -213,7 +212,7 @@ async def login(
         data={"sub": user.id},
         settings=settings,
     )
-    
+
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -231,7 +230,7 @@ async def refresh_token(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate refresh token",
     )
-    
+
     try:
         payload = jwt.decode(
             token_data.refresh_token,
@@ -240,17 +239,17 @@ async def refresh_token(
         )
         user_id: str = payload.get("sub")
         token_type: str = payload.get("type")
-        
+
         if user_id is None or token_type != "refresh":
             raise credentials_exception
-            
+
     except JWTError:
         raise credentials_exception
-    
+
     user = await get_user_by_id(db, user_id)
     if user is None:
         raise credentials_exception
-    
+
     # Create new tokens
     new_access_token = create_access_token(
         data={"sub": user.id, "email": user.email},
@@ -260,7 +259,7 @@ async def refresh_token(
         data={"sub": user.id},
         settings=settings,
     )
-    
+
     return TokenResponse(
         access_token=new_access_token,
         refresh_token=new_refresh_token,

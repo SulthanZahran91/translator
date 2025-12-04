@@ -6,11 +6,11 @@ plain text is sent for translation, and the IR is used to reconstruct the
 formatted document afterward.
 """
 
+import json
+import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
-import json
-import uuid
 
 
 class Alignment(str, Enum):
@@ -24,31 +24,31 @@ class Alignment(str, Enum):
 @dataclass
 class TextRun:
     """Smallest unit of text with consistent formatting.
-    
+
     A TextRun represents a contiguous span of text that shares the same
     formatting properties (font, size, bold, italic, etc.).
     """
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     text: str = ""
-    
+
     # Font properties
     font_name: str | None = None
     font_size: float | None = None  # in points
-    
+
     # Style properties
     bold: bool = False
     italic: bool = False
     underline: bool = False
     strike: bool = False
-    
+
     # Color (hex format, e.g., "FF0000" for red)
     color: str | None = None
     highlight_color: str | None = None
-    
+
     # Additional properties
     superscript: bool = False
     subscript: bool = False
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
@@ -65,7 +65,7 @@ class TextRun:
             "superscript": self.superscript,
             "subscript": self.subscript,
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "TextRun":
         """Create from dictionary."""
@@ -75,32 +75,32 @@ class TextRun:
 @dataclass
 class Paragraph:
     """A paragraph containing one or more text runs.
-    
+
     Paragraphs are the primary structural unit for text content. Each paragraph
     can contain multiple runs with different formatting.
     """
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     runs: list[TextRun] = field(default_factory=list)
-    
+
     # Paragraph style
     style_name: str | None = None
     alignment: Alignment = Alignment.LEFT
-    
+
     # Spacing (in points)
     space_before: float | None = None
     space_after: float | None = None
     line_spacing: float | None = None
-    
+
     # Indentation (in inches)
     left_indent: float | None = None
     right_indent: float | None = None
     first_line_indent: float | None = None
-    
+
     @property
     def text(self) -> str:
         """Get the full text content of the paragraph."""
         return "".join(run.text for run in self.runs)
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
@@ -115,7 +115,7 @@ class Paragraph:
             "right_indent": self.right_indent,
             "first_line_indent": self.first_line_indent,
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Paragraph":
         """Create from dictionary."""
@@ -129,25 +129,25 @@ class TableCell:
     """A cell within a table, containing one or more paragraphs."""
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     paragraphs: list[Paragraph] = field(default_factory=list)
-    
+
     # Cell dimensions
     width: float | None = None  # in inches
-    
+
     # Spanning
     row_span: int = 1
     col_span: int = 1
-    
+
     # Cell properties
     vertical_alignment: str | None = None  # "top", "center", "bottom"
-    
+
     # Background color (hex)
     background_color: str | None = None
-    
+
     @property
     def text(self) -> str:
         """Get the full text content of the cell."""
         return "\n".join(p.text for p in self.paragraphs)
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
@@ -159,7 +159,7 @@ class TableCell:
             "vertical_alignment": self.vertical_alignment,
             "background_color": self.background_color,
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "TableCell":
         """Create from dictionary."""
@@ -172,11 +172,11 @@ class TableRow:
     """A row within a table."""
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     cells: list[TableCell] = field(default_factory=list)
-    
+
     # Row properties
     height: float | None = None  # in inches
     is_header: bool = False
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
@@ -185,7 +185,7 @@ class TableRow:
             "height": self.height,
             "is_header": self.is_header,
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "TableRow":
         """Create from dictionary."""
@@ -198,31 +198,31 @@ class Table:
     """A table structure with rows and cells."""
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     rows: list[TableRow] = field(default_factory=list)
-    
+
     # Column widths (in inches)
     col_widths: list[float] = field(default_factory=list)
-    
+
     # Table style
     style_name: str | None = None
-    
+
     @property
     def num_rows(self) -> int:
         """Get the number of rows."""
         return len(self.rows)
-    
+
     @property
     def num_cols(self) -> int:
         """Get the number of columns."""
         if not self.rows:
             return 0
         return len(self.rows[0].cells)
-    
+
     def get_cell(self, row: int, col: int) -> TableCell | None:
         """Get a cell by row and column index."""
         if 0 <= row < len(self.rows) and 0 <= col < len(self.rows[row].cells):
             return self.rows[row].cells[col]
         return None
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
@@ -231,7 +231,7 @@ class Table:
             "col_widths": self.col_widths,
             "style_name": self.style_name,
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Table":
         """Create from dictionary."""
@@ -246,25 +246,25 @@ DocumentElement = Paragraph | Table
 @dataclass
 class Section:
     """A document section with its own page layout settings.
-    
+
     Sections define page dimensions, margins, and contain the actual content
     elements (paragraphs and tables).
     """
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     elements: list[DocumentElement] = field(default_factory=list)
-    
+
     # Page dimensions (in inches)
     page_width: float | None = None
     page_height: float | None = None
-    
+
     # Margins (in inches)
     margin_top: float | None = None
     margin_bottom: float | None = None
     margin_left: float | None = None
     margin_right: float | None = None
-    
+
     # Headers and footers could be added here
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         elements_data = []
@@ -272,7 +272,7 @@ class Section:
             elem_dict = elem.to_dict()
             elem_dict["_type"] = "paragraph" if isinstance(elem, Paragraph) else "table"
             elements_data.append(elem_dict)
-        
+
         return {
             "id": self.id,
             "elements": elements_data,
@@ -283,20 +283,20 @@ class Section:
             "margin_left": self.margin_left,
             "margin_right": self.margin_right,
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Section":
         """Create from dictionary."""
         elements_data = data.pop("elements", [])
         elements: list[DocumentElement] = []
-        
+
         for elem_data in elements_data:
             elem_type = elem_data.pop("_type", "paragraph")
             if elem_type == "table":
                 elements.append(Table.from_dict(elem_data))
             else:
                 elements.append(Paragraph.from_dict(elem_data))
-        
+
         return cls(elements=elements, **data)
 
 
@@ -305,18 +305,18 @@ class DocumentStyle:
     """A named style that can be referenced by paragraphs."""
     name: str
     base_style: str | None = None
-    
+
     # Font defaults
     font_name: str | None = None
     font_size: float | None = None
     bold: bool = False
     italic: bool = False
-    
+
     # Paragraph defaults
     alignment: Alignment = Alignment.LEFT
     space_before: float | None = None
     space_after: float | None = None
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
@@ -330,7 +330,7 @@ class DocumentStyle:
             "space_before": self.space_before,
             "space_after": self.space_after,
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "DocumentStyle":
         """Create from dictionary."""
@@ -341,18 +341,18 @@ class DocumentStyle:
 @dataclass
 class Document:
     """Root container for the entire document.
-    
+
     A Document contains sections, each of which can have different page layouts.
     It also stores named styles that can be referenced throughout.
     """
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     sections: list[Section] = field(default_factory=list)
     styles: dict[str, DocumentStyle] = field(default_factory=dict)
-    
+
     # Metadata
     source_filename: str | None = None
     source_format: str | None = None  # "docx", "pdf"
-    
+
     @property
     def all_paragraphs(self) -> list[Paragraph]:
         """Get all paragraphs in the document."""
@@ -366,7 +366,7 @@ class Document:
                         for cell in row.cells:
                             paragraphs.extend(cell.paragraphs)
         return paragraphs
-    
+
     @property
     def all_tables(self) -> list[Table]:
         """Get all tables in the document."""
@@ -376,7 +376,7 @@ class Document:
                 if isinstance(elem, Table):
                     tables.append(elem)
         return tables
-    
+
     def get_element_by_id(self, element_id: str) -> DocumentElement | TextRun | TableCell | None:
         """Find an element by its ID."""
         for section in self.sections:
@@ -401,7 +401,7 @@ class Document:
                                     if run.id == element_id:
                                         return run
         return None
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
@@ -411,7 +411,7 @@ class Document:
             "source_filename": self.source_filename,
             "source_format": self.source_format,
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Document":
         """Create from dictionary."""
@@ -419,11 +419,11 @@ class Document:
         styles_data = data.pop("styles", {})
         styles = {name: DocumentStyle.from_dict(s) for name, s in styles_data.items()}
         return cls(sections=sections, styles=styles, **data)
-    
+
     def to_json(self, indent: int = 2) -> str:
         """Serialize to JSON string."""
         return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
-    
+
     @classmethod
     def from_json(cls, json_str: str) -> "Document":
         """Deserialize from JSON string."""
@@ -441,31 +441,31 @@ class ElementReference:
 @dataclass
 class TranslationUnit:
     """A chunk of text that will be sent to the LLM for translation.
-    
+
     Translation units aggregate content from potentially multiple elements
     while respecting chunk size limits. The element_refs track which parts
     of the original IR this unit covers for reconstruction.
     """
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
-    
+
     # The source text (Korean) to be translated
     source_text: str = ""
-    
+
     # References to the original IR elements covered by this unit
     element_refs: list[ElementReference] = field(default_factory=list)
-    
+
     # Context hint for the LLM (e.g., "table content", "heading", etc.)
     context_hint: str | None = None
-    
+
     # The translated text (English) - populated after translation
     translated_text: str | None = None
-    
+
     # Token counts for budgeting
     source_token_count: int = 0
-    
+
     # Order in the document
     sequence_number: int = 0
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
@@ -480,7 +480,7 @@ class TranslationUnit:
             "source_token_count": self.source_token_count,
             "sequence_number": self.sequence_number,
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "TranslationUnit":
         """Create from dictionary."""

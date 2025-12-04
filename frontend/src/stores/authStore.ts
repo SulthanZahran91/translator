@@ -9,7 +9,7 @@ interface AuthState {
   refreshToken: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  
+
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => void;
@@ -30,17 +30,16 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
         try {
           const tokens = await authApi.login({ username: email, password });
-          
+
           localStorage.setItem('access_token', tokens.access_token);
           localStorage.setItem('refresh_token', tokens.refresh_token);
-          
+
           set({
             accessToken: tokens.access_token,
             refreshToken: tokens.refresh_token,
             isAuthenticated: true,
           });
 
-          // Fetch user info
           const user = await authApi.getMe();
           set({ user });
         } finally {
@@ -52,7 +51,6 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
         try {
           await authApi.register({ email, password, name });
-          // Auto-login after registration
           await get().login(email, password);
         } finally {
           set({ isLoading: false });

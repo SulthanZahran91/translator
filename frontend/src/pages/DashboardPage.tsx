@@ -159,7 +159,6 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* Upload Zone */}
       <div className="mb-8">
         {isUploading ? (
           <Card className="p-8 text-center">
@@ -171,10 +170,9 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Jobs List */}
       <div>
         <h2 className="text-lg font-semibold text-foreground mb-4">Recent Jobs</h2>
-        
+
         {isLoading ? (
           <div className="text-center py-12">
             <Loader2 className="w-8 h-8 text-accent animate-spin mx-auto mb-4" />

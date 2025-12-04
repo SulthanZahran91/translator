@@ -1,13 +1,13 @@
 # Database models
-from backend.models.user import User
-from backend.models.job import TranslationJob, JobStatus
 from backend.models.glossary import (
-    UserGlossary,
     GlossaryTerm,
     JobGlossary,
     SystemGlossary,
+    UserGlossary,
 )
+from backend.models.job import JobStatus, TranslationJob
 from backend.models.log import JobLog
+from backend.models.user import User
 
 __all__ = [
     "User",

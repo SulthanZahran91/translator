@@ -10,7 +10,6 @@ export const apiClient = axios.create({
   },
 });
 
-// Request interceptor to add auth token
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('access_token');
@@ -22,7 +21,6 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor for token refresh
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
@@ -48,8 +46,6 @@ apiClient.interceptors.response.use(
 
           return apiClient(originalRequest);
         } catch {
-          // processQueue(new Error('Failed to refresh token'), null); // TODO: processQueue is not defined
-          // Refresh failed, clear tokens and redirect to login
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');
           window.location.href = '/login';
