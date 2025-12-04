@@ -4,6 +4,7 @@ Converts DOCX to PDF using LibreOffice in headless mode.
 Falls back to just returning DOCX if LibreOffice is not available.
 """
 
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -21,16 +22,21 @@ class PDFWriter:
 
     def _check_libreoffice(self) -> None:
         """Check if LibreOffice is available."""
-        # Common paths for LibreOffice
-        paths = [
-            "libreoffice",
-            "soffice",
-            r"C:\Program Files\LibreOffice\program\soffice.exe",
-            r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
-            "/usr/bin/libreoffice",
-            "/usr/bin/soffice",
-            "/Applications/LibreOffice.app/Contents/MacOS/soffice",
-        ]
+        # Check environment variable first
+        env_path = os.getenv("LIBREOFFICE_PATH")
+        if env_path:
+            paths = [env_path]
+        else:
+            # Common paths for LibreOffice
+            paths = [
+                "libreoffice",
+                "soffice",
+                r"C:\Program Files\LibreOffice\program\soffice.exe",
+                r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
+                "/usr/bin/libreoffice",
+                "/usr/bin/soffice",
+                "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+            ]
 
         for path in paths:
             try:

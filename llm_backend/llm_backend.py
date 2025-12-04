@@ -26,7 +26,7 @@ load_dotenv(BASE_DIR / ".env")
 
 # Set up standard file logging
 logging.basicConfig(
-    filename='proxy.log',
+    filename=str(BASE_DIR / 'proxy.log'),
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
@@ -617,4 +617,6 @@ if __name__ == "__main__":
     print("   POST /v1/chat/completions - Chat completions")
     print("   GET  /health - Health check")
     print("   GET  / - Info page")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run(app, host=host, port=port)
