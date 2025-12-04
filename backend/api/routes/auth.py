@@ -3,7 +3,8 @@
 from datetime import datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import logging
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from sqlalchemy import select
@@ -18,7 +19,9 @@ from backend.api.schemas.auth import (
 )
 from backend.models.user import User
 
+logging.basicConfig(level=logging.INFO)
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+logger = logging.getLogger(__name__)
 
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -155,6 +158,7 @@ async def register(
 
 @router.post("/login", response_model=TokenResponse)
 async def login(
+    request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: DbSessionDep,
     settings: SettingsDep,
@@ -163,6 +167,19 @@ async def login(
 
     Authenticates against the Upstream LLM service.
     """
+    logger.info("Login request received")
+    logger.info(f"Headers: {request.headers}")
+    # Redact password in logs
+    safe_form_data = {
+        "username": form_data.username,
+        "password": "***" if form_data.password else None,
+        "grant_type": form_data.grant_type,
+        "scopes": form_data.scopes,
+        "client_id": form_data.client_id,
+        "client_secret": "***" if form_data.client_secret else None,
+    }
+    logger.info(f"Payload: {safe_form_data}")
+
     # 1. Authenticate with Upstream LLM
     from backend.translation.llm_client import UpstreamLLMClient
     llm_client = UpstreamLLMClient()
@@ -213,10 +230,13 @@ async def login(
         settings=settings,
     )
 
-    return TokenResponse(
+    response = TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
     )
+    logger.info(f"Login successful for user: {user.email}")
+    logger.info(f"Response: {response.model_dump()}")
+    return response
 
 
 @router.post("/refresh", response_model=TokenResponse)
