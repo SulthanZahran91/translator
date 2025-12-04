@@ -31,7 +31,6 @@ class CompletionRequest(BaseModel):
 @app.post("/auth")
 async def auth(req: AuthRequest):
     # Accept any email/password for dummy purposes
-    # In reality, this would check credentials
     if not req.email or not req.password:
         raise HTTPException(status_code=400, detail="Email and password required")
     
@@ -41,7 +40,8 @@ async def auth(req: AuthRequest):
         "expires_at": time.time() + 3600 # 1 hour
     }
     
-    return AuthResponse(token=token, expires_in=3600)
+    # Format A: Just the token
+    return {"token": token}
 
 async def verify_token(authorization: str = Header(None)):
     if not authorization:
@@ -63,33 +63,29 @@ async def verify_token(authorization: str = Header(None)):
     
     return TOKENS[token]
 
-@app.post("/completion")
-async def completion(req: CompletionRequest, user_info: dict = Depends(verify_token)):
-    # Simulate a simple response
-    return {
-        "id": f"chatcmpl-{uuid.uuid4()}",
-        "object": "chat.completion",
-        "created": int(time.time()),
-        "model": req.model,
-        "choices": [
-            {
-                "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": f"Dummy response for {user_info['email']}: I received your message."
-                },
-                "finish_reason": "stop"
-            }
-        ],
-        "usage": {
-            "prompt_tokens": 10,
-            "completion_tokens": 10,
-            "total_tokens": 20
-        }
-    }
-
 @app.post("/v1/chat/completions")
-async def openai_completion(req: CompletionRequest, user_info: dict = Depends(verify_token)):
+async def openai_completion(
+    req: CompletionRequest, 
+    user_info: dict = Depends(verify_token),
+    email: str = Header(...),
+    product: str = Header(...),
+    version: str = Header(...),
+    recommend: str = Header(...)
+):
+    # Header Validation
+    if email != user_info['email']:
+        raise HTTPException(status_code=403, detail="Email header does not match token owner")
+    if product != "API":
+        raise HTTPException(status_code=400, detail="Invalid product header")
+    if version != "1.0.0":
+        raise HTTPException(status_code=400, detail="Invalid version header")
+    if recommend != "test-recommendation-API-call":
+        raise HTTPException(status_code=400, detail="Invalid recommend header")
+
+    # Body Validation
+    if req.stream:
+        raise HTTPException(status_code=400, detail="Stream must be false")
+
     # Simulate an OpenAI response
     return {
         "id": f"chatcmpl-{uuid.uuid4()}",
@@ -115,4 +111,4 @@ async def openai_completion(req: CompletionRequest, user_info: dict = Depends(ve
 
 if __name__ == "__main__":
     # Run on port 8001 to avoid conflict with main backend (8000)
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8001)

@@ -46,10 +46,10 @@ class Settings(BaseModel):
     @classmethod
     def from_env(cls):
         return cls(
-            upstream_auth_url=os.getenv("UPSTREAM_AUTH_URL", ""),
-            upstream_completion_url=os.getenv("UPSTREAM_COMPLETION_URL", ""),
-            upstream_email=os.getenv("UPSTREAM_EMAIL", ""),
-            upstream_password=os.getenv("UPSTREAM_PASSWORD", ""),
+            upstream_auth_url=os.getenv("UPSTREAM_AUTH_URL", "http://localhost:8001/auth"),
+            upstream_completion_url=os.getenv("UPSTREAM_COMPLETION_URL", "http://localhost:8001/v1/chat/completions"),
+            upstream_email=os.getenv("UPSTREAM_EMAIL", "test@example.com"),
+            upstream_password=os.getenv("UPSTREAM_PASSWORD", "pass"),
             proxy_api_key=os.getenv("PROXY_API_KEY", "test")
         )
 
