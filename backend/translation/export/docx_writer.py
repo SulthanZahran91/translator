@@ -4,6 +4,7 @@ Converts the Intermediate Representation back to DOCX format,
 preserving all formatting information.
 """
 
+import base64
 from io import BytesIO
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from docx.shared import Inches, Pt, RGBColor
 from backend.translation.ir import (
     Alignment,
     Document,
+    Image,
     Paragraph,
     Section,
     Table,
@@ -141,6 +143,36 @@ class DocxWriter:
                 self._write_paragraph(elem)
             elif isinstance(elem, Table):
                 self._write_table(elem)
+            elif isinstance(elem, Image):
+                self._write_image(elem)
+
+    def _write_image(self, image: Image) -> None:
+        """Write an image element."""
+        if not self._doc:
+            return
+        
+        try:
+            # Decode base64 image data
+            image_bytes = base64.b64decode(image.data)
+            image_stream = BytesIO(image_bytes)
+            
+            # Add a paragraph to contain the image
+            para = self._doc.add_paragraph()
+            run = para.add_run()
+            
+            # Add the picture with dimensions if available
+            if image.width and image.height:
+                run.add_picture(image_stream, width=Inches(image.width), height=Inches(image.height))
+            elif image.width:
+                run.add_picture(image_stream, width=Inches(image.width))
+            elif image.height:
+                run.add_picture(image_stream, height=Inches(image.height))
+            else:
+                run.add_picture(image_stream)
+            
+        except Exception:
+            # If image cannot be written, skip it silently
+            pass
 
     def _write_paragraph(self, paragraph: Paragraph) -> None:
         """Write a paragraph."""

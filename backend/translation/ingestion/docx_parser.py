@@ -5,6 +5,8 @@ our Intermediate Representation (IR) format, preserving all formatting
 metadata for later reconstruction.
 """
 
+import base64
+from io import BytesIO
 from pathlib import Path
 
 from docx import Document as DocxDocument
@@ -21,6 +23,8 @@ from backend.translation.ir import (
     Alignment,
     Document,
     DocumentStyle,
+    Image,
+    ImageType,
     Paragraph,
     Section,
     Table,
@@ -197,12 +201,12 @@ class DocxParser:
 
         return sections
 
-    def _parse_body_elements(self) -> list[Paragraph | Table]:
-        """Parse all body elements (paragraphs and tables)."""
+    def _parse_body_elements(self) -> list[Paragraph | Table | Image]:
+        """Parse all body elements (paragraphs, tables, and images)."""
         if self._doc is None:
             return []
 
-        elements: list[Paragraph | Table] = []
+        elements: list[Paragraph | Table | Image] = []
 
         # python-docx exposes body elements through the document body
         body = self._doc.element.body
@@ -214,7 +218,24 @@ class DocxParser:
                 # Find the corresponding paragraph object
                 for para in self._doc.paragraphs:
                     if para._element is child:
-                        elements.append(self._parse_paragraph(para))
+                        # Check for images in this paragraph and extract them
+                        images = self._extract_images_from_paragraph(para)
+                        elements.extend(images)
+                        
+                        # Parse the paragraph itself (may have text alongside images)
+                        parsed_para = self._parse_paragraph(para)
+                        
+                        # TRS 1.3 Image Guard Logic: If paragraph contains images,
+                        # mark it to skip translation to prevent image anchor deletion
+                        if images:
+                            parsed_para.skip_translation = True
+                        
+                        # Only add if it has content or non-empty runs
+                        if parsed_para.runs and any(r.text for r in parsed_para.runs):
+                            elements.append(parsed_para)
+                        elif not images:
+                            # Empty paragraph with no images - keep for spacing
+                            elements.append(parsed_para)
                         break
             elif tag.endswith("}tbl"):  # Table
                 for table in self._doc.tables:
@@ -223,6 +244,140 @@ class DocxParser:
                         break
 
         return elements
+
+    def _extract_images_from_paragraph(self, docx_para: DocxParagraph) -> list[Image]:
+        """Extract all images from a paragraph's runs."""
+        images: list[Image] = []
+        
+        for run in docx_para.runs:
+            # Check for inline images (drawings)
+            run_images = self._extract_images_from_run(run)
+            images.extend(run_images)
+        
+        return images
+    
+    def _extract_images_from_run(self, docx_run: DocxRun) -> list[Image]:
+        """Extract images from a single run element."""
+        images: list[Image] = []
+        
+        if self._doc is None:
+            return images
+        
+        run_element = docx_run._r
+        
+        # Look for drawing elements (inline images)
+        # Namespace for drawings
+        drawing_ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}drawing"
+        
+        for drawing in run_element.iter(drawing_ns):
+            image = self._parse_drawing_element(drawing, ImageType.INLINE)
+            if image:
+                images.append(image)
+        
+        return images
+    
+    def _parse_drawing_element(self, drawing_elem, image_type: ImageType) -> Image | None:
+        """Parse a drawing element and extract image data."""
+        if self._doc is None:
+            return None
+        
+        # Namespaces used in OOXML
+        ns = {
+            'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
+            'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+            'wp': 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing',
+            'pic': 'http://schemas.openxmlformats.org/drawingml/2006/picture',
+        }
+        
+        try:
+            # Find the blip element which contains the image reference
+            blip = drawing_elem.find('.//a:blip', ns)
+            if blip is None:
+                return None
+            
+            # Get the relationship ID
+            embed_attr = '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed'
+            rel_id = blip.get(embed_attr)
+            if not rel_id:
+                return None
+            
+            # Get the image part from the document's relationships
+            try:
+                image_part = self._doc.part.related_parts[rel_id]
+            except KeyError:
+                return None
+            
+            # Get image data
+            image_bytes = image_part.blob
+            image_data = base64.b64encode(image_bytes).decode('utf-8')
+            
+            # Determine image format from content type
+            content_type = image_part.content_type
+            format_map = {
+                'image/png': 'png',
+                'image/jpeg': 'jpeg',
+                'image/jpg': 'jpeg',
+                'image/gif': 'gif',
+                'image/bmp': 'bmp',
+                'image/tiff': 'tiff',
+                'image/x-emf': 'emf',
+                'image/x-wmf': 'wmf',
+            }
+            image_format = format_map.get(content_type, 'png')
+            
+            # Try to extract dimensions
+            width = None
+            height = None
+            
+            # Look for extent element (dimensions in EMUs)
+            extent = drawing_elem.find('.//wp:extent', ns)
+            if extent is not None:
+                cx = extent.get('cx')
+                cy = extent.get('cy')
+                if cx:
+                    # Convert EMUs to inches (914400 EMUs = 1 inch)
+                    width = int(cx) / 914400.0
+                if cy:
+                    height = int(cy) / 914400.0
+            
+            # Try to get alt text
+            alt_text = None
+            doc_pr = drawing_elem.find('.//wp:docPr', ns)
+            if doc_pr is not None:
+                alt_text = doc_pr.get('descr')
+            
+            # Try to get positioning for floating images
+            position_x = None
+            position_y = None
+            
+            if image_type == ImageType.FLOATING:
+                # Look for anchor positioning
+                pos_h = drawing_elem.find('.//wp:positionH', ns)
+                pos_v = drawing_elem.find('.//wp:positionV', ns)
+                if pos_h is not None:
+                    pos_offset = pos_h.find('.//wp:posOffset', ns)
+                    if pos_offset is not None and pos_offset.text:
+                        position_x = int(pos_offset.text) / 914400.0
+                if pos_v is not None:
+                    pos_offset = pos_v.find('.//wp:posOffset', ns)
+                    if pos_offset is not None and pos_offset.text:
+                        position_y = int(pos_offset.text) / 914400.0
+            
+            return Image(
+                data=image_data,
+                format=image_format,
+                width=width,
+                height=height,
+                image_type=image_type,
+                position_x=position_x,
+                position_y=position_y,
+                alt_text=alt_text,
+                rel_id=rel_id,
+            )
+            
+        except Exception:
+            # If anything goes wrong, skip this image
+            return None
 
     def _parse_paragraph(self, docx_para: DocxParagraph) -> Paragraph:
         """Parse a single paragraph."""

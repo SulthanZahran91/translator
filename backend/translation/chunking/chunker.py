@@ -111,6 +111,10 @@ class Chunker:
         if not para_text.strip():
             return unit  # Skip empty paragraphs
 
+        # TRS 1.3 Image Guard: Skip paragraphs containing inline images
+        if paragraph.skip_translation:
+            return unit
+
         # Format the paragraph for translation
         if self._config.include_element_ids:
             formatted_text = f'<p id="{paragraph.id}">{para_text}</p>\n'

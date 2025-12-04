@@ -96,6 +96,10 @@ class Paragraph:
     right_indent: float | None = None
     first_line_indent: float | None = None
 
+    # Translation control - skip translation for paragraphs with inline images
+    # to prevent deletion of image anchors (TRS 1.3 Image Guard Logic)
+    skip_translation: bool = False
+
     @property
     def text(self) -> str:
         """Get the full text content of the paragraph."""
@@ -114,6 +118,7 @@ class Paragraph:
             "left_indent": self.left_indent,
             "right_indent": self.right_indent,
             "first_line_indent": self.first_line_indent,
+            "skip_translation": self.skip_translation,
         }
 
     @classmethod
@@ -239,8 +244,68 @@ class Table:
         return cls(rows=rows, **data)
 
 
+class ImageType(str, Enum):
+    """Type of image positioning."""
+    INLINE = "inline"  # InlineShape - flows with text
+    FLOATING = "floating"  # Anchored shape - positioned relative to page/paragraph
+
+
+@dataclass
+class Image:
+    """An embedded image in the document.
+    
+    Supports both inline images (InlineShape) that flow with text and
+    floating images (anchored shapes) that can be positioned freely.
+    """
+    id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
+    
+    # Image data (base64 encoded)
+    data: str = ""
+    
+    # Image format (e.g., "png", "jpeg", "gif")
+    format: str = "png"
+    
+    # Dimensions (in inches)
+    width: float | None = None
+    height: float | None = None
+    
+    # Image type (inline or floating)
+    image_type: ImageType = ImageType.INLINE
+    
+    # Positioning for floating images (in inches from page edge)
+    position_x: float | None = None
+    position_y: float | None = None
+    
+    # Alt text for accessibility  
+    alt_text: str | None = None
+    
+    # Original relationship ID (for debugging/tracking)
+    rel_id: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "id": self.id,
+            "data": self.data,
+            "format": self.format,
+            "width": self.width,
+            "height": self.height,
+            "image_type": self.image_type.value,
+            "position_x": self.position_x,
+            "position_y": self.position_y,
+            "alt_text": self.alt_text,
+            "rel_id": self.rel_id,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Image":
+        """Create from dictionary."""
+        image_type = ImageType(data.pop("image_type", "inline"))
+        return cls(image_type=image_type, **data)
+
+
 # Type alias for document elements
-DocumentElement = Paragraph | Table
+DocumentElement = Paragraph | Table | Image
 
 
 @dataclass
@@ -270,7 +335,12 @@ class Section:
         elements_data = []
         for elem in self.elements:
             elem_dict = elem.to_dict()
-            elem_dict["_type"] = "paragraph" if isinstance(elem, Paragraph) else "table"
+            if isinstance(elem, Paragraph):
+                elem_dict["_type"] = "paragraph"
+            elif isinstance(elem, Table):
+                elem_dict["_type"] = "table"
+            elif isinstance(elem, Image):
+                elem_dict["_type"] = "image"
             elements_data.append(elem_dict)
 
         return {
@@ -294,6 +364,8 @@ class Section:
             elem_type = elem_data.pop("_type", "paragraph")
             if elem_type == "table":
                 elements.append(Table.from_dict(elem_data))
+            elif elem_type == "image":
+                elements.append(Image.from_dict(elem_data))
             else:
                 elements.append(Paragraph.from_dict(elem_data))
 

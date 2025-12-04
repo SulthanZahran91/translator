@@ -275,3 +275,109 @@ class TestDocxParserWithSpacing:
         assert paragraphs[0].space_before == 12.0
         assert paragraphs[0].space_after == 6.0
 
+
+class TestDocxParserWithImages:
+    """Tests for image extraction from DOCX files."""
+    
+    def _create_docx_with_image(self) -> bytes:
+        """Create a DOCX with an inline image."""
+        import base64
+        from docx.shared import Inches
+        
+        doc = DocxDocument()
+        doc.add_paragraph("Text before image")
+        
+        # A 1x1 red PNG (minimal valid PNG)
+        png_data = base64.b64decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=='
+        )
+        img_stream = BytesIO(png_data)
+        doc.add_picture(img_stream, width=Inches(2), height=Inches(1))
+        
+        doc.add_paragraph("Text after image")
+        
+        buffer = BytesIO()
+        doc.save(buffer)
+        return buffer.getvalue()
+    
+    def test_parse_inline_image(self):
+        """Test that inline images are parsed."""
+        from backend.translation.ir import Image
+        
+        content = self._create_docx_with_image()
+        doc = parse_docx_bytes(content, "test_image.docx")
+        
+        # Find images in elements
+        images = [e for e in doc.sections[0].elements if isinstance(e, Image)]
+        assert len(images) == 1
+        
+    def test_image_dimensions_preserved(self):
+        """Test that image dimensions are extracted correctly."""
+        from backend.translation.ir import Image
+        
+        content = self._create_docx_with_image()
+        doc = parse_docx_bytes(content, "test_image.docx")
+        
+        images = [e for e in doc.sections[0].elements if isinstance(e, Image)]
+        assert len(images) == 1
+        
+        img = images[0]
+        assert img.width == 2.0
+        assert img.height == 1.0
+        assert img.format == "png"
+        
+    def test_image_data_is_base64(self):
+        """Test that image data is stored as valid base64."""
+        import base64
+        from backend.translation.ir import Image
+        
+        content = self._create_docx_with_image()
+        doc = parse_docx_bytes(content, "test_image.docx")
+        
+        images = [e for e in doc.sections[0].elements if isinstance(e, Image)]
+        img = images[0]
+        
+        # Should be able to decode the base64 data
+        decoded = base64.b64decode(img.data)
+        assert len(decoded) > 0
+        
+    def test_image_roundtrip(self):
+        """Test that images survive parse -> write -> parse cycle."""
+        from backend.translation.ir import Image
+        from backend.translation.export.docx_writer import write_docx_bytes
+        
+        # Parse original
+        content = self._create_docx_with_image()
+        doc1 = parse_docx_bytes(content, "test_image.docx")
+        
+        # Write and re-parse
+        output_bytes = write_docx_bytes(doc1)
+        doc2 = parse_docx_bytes(output_bytes, "output.docx")
+        
+        # Check images are preserved
+        images1 = [e for e in doc1.sections[0].elements if isinstance(e, Image)]
+        images2 = [e for e in doc2.sections[0].elements if isinstance(e, Image)]
+        
+        assert len(images1) == len(images2) == 1
+        assert images1[0].width == images2[0].width
+        assert images1[0].height == images2[0].height
+        assert images1[0].data == images2[0].data
+        
+    def test_image_serialization(self):
+        """Test that images can be serialized to JSON and restored."""
+        from backend.translation.ir import Image
+        
+        content = self._create_docx_with_image()
+        doc = parse_docx_bytes(content, "test_image.docx")
+        
+        # Serialize to JSON
+        json_str = doc.to_json()
+        
+        # Restore and verify
+        restored = Document.from_json(json_str)
+        
+        images = [e for e in restored.sections[0].elements if isinstance(e, Image)]
+        assert len(images) == 1
+        assert images[0].width == 2.0
+        assert images[0].height == 1.0
+
