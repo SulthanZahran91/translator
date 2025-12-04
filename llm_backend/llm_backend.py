@@ -6,7 +6,7 @@ import re
 import httpx
 import uvicorn
 import asyncio
-import sqlite3
+import asyncio
 import logging
 from datetime import datetime
 from typing import Optional, Dict, List, Union, Any
@@ -32,7 +32,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-DB_PATH = "proxy_logs.db"
+logger = logging.getLogger(__name__)
 
 class Settings(BaseModel):
     upstream_auth_url: str
@@ -59,118 +59,13 @@ except Exception as e:
     logger.error(f"Failed to load settings: {e}")
     settings = None
 
-# --- DATABASE HELPERS ---
-def init_db():
-    """Initialize the SQLite database for persistent logging."""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS request_logs (
-            id TEXT PRIMARY KEY,
-            timestamp DATETIME,
-            model TEXT,
-            status_code INTEGER,
-            duration_ms REAL,
-            request_body TEXT,
-            response_body TEXT,
-            upstream_url TEXT
-        )
-    ''')
-    conn.commit()
-    conn.close()
 
-def log_request_to_db(
-    request_id: str, 
-    model: str, 
-    status_code: int, 
-    duration_ms: float, 
-    req_body: dict, 
-    res_body: Any,
-    upstream_url: str
-):
-    """Background task to write logs to DB without blocking the API."""
-    try:
-        # Convert objects to JSON strings for storage
-        req_json = json.dumps(req_body, default=str)
-        
-        # Handle response body which might be a dict or a string/exception
-        if isinstance(res_body, dict):
-            res_json = json.dumps(res_body, default=str)
-        else:
-            res_json = str(res_body)
 
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute('''
-            INSERT INTO request_logs 
-            (id, timestamp, model, status_code, duration_ms, request_body, response_body, upstream_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            request_id, 
-            datetime.now(), 
-            model, 
-            status_code, 
-            duration_ms, 
-            req_json, 
-            res_json, 
-            upstream_url
-        ))
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        logger.error(f"Failed to write to DB: {e}")
 
-# --- XML PARSING HELPER ---
-def parse_xml_to_tool_calls(content: str) -> tuple[str, List[Dict]]:
-    if not content: return "", []
-    tool_calls = []
-    
-    # Define patterns for known Cline tools
-    tool_patterns = [
-        ("ask_followup_question", r'<ask_followup_question>(.*?)</ask_followup_question>'),
-        ("execute_command", r'<execute_command>(.*?)</execute_command>'),
-        ("read_file", r'<read_file>(.*?)</read_file>'),
-        ("write_to_file", r'<write_to_file>(.*?)</write_to_file>'),
-        ("replace_in_file", r'<replace_in_file>(.*?)</replace_in_file>'),
-        ("search_files", r'<search_files>(.*?)</search_files>'),
-        ("list_files", r'<list_files>(.*?)</list_files>'),
-        ("list_code_definition_names", r'<list_code_definition_names>(.*?)</list_code_definition_names>'),
-        ("browser_action", r'<browser_action>(.*?)</browser_action>'),
-        ("attempt_completion", r'<attempt_completion>(.*?)</attempt_completion>'),
-        ("plan_mode_respond", r'<plan_mode_respond>(.*?)</plan_mode_respond>'),
-        ("use_mcp_tool", r'<use_mcp_tool>(.*?)</use_mcp_tool>'),
-        ("access_mcp_resource", r'<access_mcp_resource>(.*?)</access_mcp_resource>'),
-    ]
-
-    for tool_name, pattern in tool_patterns:
-        match = re.search(pattern, content, re.DOTALL)
-        if match:
-            inner_xml = match.group(1)
-            arguments = {}
-            # Extract arguments
-            arg_matches = re.finditer(r'<([a-zA-Z0-9_]+)>(.*?)</\1>', inner_xml, re.DOTALL)
-            for arg_match in arg_matches:
-                arg_name = arg_match.group(1)
-                arg_val = arg_match.group(2).strip()
-                arguments[arg_name] = arg_val
-
-            tool_call = {
-                "id": f"call_{uuid.uuid4().hex[:8]}",
-                "type": "function",
-                "function": {
-                    "name": tool_name,
-                    "arguments": json.dumps(arguments)
-                }
-            }
-            tool_calls.append(tool_call)
-            content = content.replace(match.group(0), "").strip()
-
-    return content, tool_calls
 
 # --- APP SETUP ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
     if settings: 
         logger.info("Adapter Configured Successfully")
     yield
@@ -232,6 +127,7 @@ async def get_upstream_token() -> str:
         try:
             response = await client.post(
                 settings.upstream_auth_url,
+                params={"email": settings.upstream_email, "password": settings.upstream_password},
                 json={"email": settings.upstream_email, "password": settings.upstream_password},
                 timeout=10.0
             )
@@ -284,78 +180,13 @@ async def generate_fake_stream(response_data: dict):
     yield f"data: {json.dumps(chunk)}\n\n"
     yield "data: [DONE]\n\n"
 
-# --- DASHBOARD ENDPOINT ---
-@app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    c.execute("SELECT * FROM request_logs ORDER BY timestamp DESC LIMIT 50")
-    rows = c.fetchall()
-    conn.close()
 
-    rows_html = ""
-    for row in rows:
-        status_color = "green" if 200 <= row['status_code'] < 300 else "red"
-        # Truncate bodies for display
-        req_preview = (row['request_body'][:100] + '...') if row['request_body'] and len(row['request_body']) > 100 else row['request_body']
-        res_preview = (row['response_body'][:100] + '...') if row['response_body'] and len(row['response_body']) > 100 else row['response_body']
-        
-        rows_html += f"""
-        <tr>
-            <td>{row['timestamp']}</td>
-            <td>{row['model']}</td>
-            <td style="color:{status_color}; font-weight:bold;">{row['status_code']}</td>
-            <td>{int(row['duration_ms'])}ms</td>
-            <td><div class="code-box" title="{row['request_body']}">{req_preview}</div></td>
-            <td><div class="code-box" title="{row['response_body']}">{res_preview}</div></td>
-        </tr>
-        """
-
-    html_content = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>API Proxy Dashboard</title>
-        <style>
-            body {{ font-family: -apple-system, system-ui, sans-serif; padding: 20px; background: #f4f4f9; }}
-            h1 {{ color: #333; }}
-            table {{ width: 100%; border-collapse: collapse; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
-            th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }}
-            th {{ background-color: #f8f9fa; font-weight: 600; color: #555; }}
-            tr:hover {{ background-color: #f1f1f1; }}
-            .code-box {{ font-family: monospace; background: #eee; padding: 4px; border-radius: 4px; font-size: 0.9em; cursor: help; }}
-        </style>
-        <meta http-equiv="refresh" content="5">
-    </head>
-    <body>
-        <h1>📊 Proxy Request Log (Last 50)</h1>
-        <table>
-            <thead>
-                <tr>
-                    <th>Time</th>
-                    <th>Model</th>
-                    <th>Status</th>
-                    <th>Duration</th>
-                    <th>Request Preview</th>
-                    <th>Response Preview</th>
-                </tr>
-            </thead>
-            <tbody>
-                {rows_html}
-            </tbody>
-        </table>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
 
 # --- MAIN ENDPOINT ---
 @app.post("/v1/chat/completions")
 async def chat_completions(
     raw_request: Request,
     request: OpenAIRequest, 
-    background_tasks: BackgroundTasks,
     auth: HTTPAuthorizationCredentials = Depends(security)
 ):
     start_time = time.time()
@@ -398,7 +229,7 @@ async def chat_completions(
                     "email": settings.upstream_email,
                     "product": "API",
                     "version": "1.0.0",
-                    "recommend":"test-recommendation-API-call"
+                    "version": "1.0.0"
                 }
 
                 async with httpx.AsyncClient() as client:
@@ -431,16 +262,11 @@ async def chat_completions(
                         msg = choice.get("message", {})
                         content = msg.get("content") or ""
                         
-                        # DETECT XML & CONVERT
-                        existing_tools = msg.get("tool_calls", [])
-                        if not existing_tools:
-                            cleaned_content, extracted_tools = parse_xml_to_tool_calls(content)
-                            if extracted_tools:
-                                logger.info(f"Detected {len(extracted_tools)} XML tools! Converting...")
-                                existing_tools = extracted_tools
+
 
                         # CLEANUP TOOLS
                         clean_tool_calls = []
+                        existing_tools = msg.get("tool_calls", [])
                         if existing_tools and isinstance(existing_tools, list):
                             for tc in existing_tools:
                                 if "type" not in tc: tc["type"] = "function"
@@ -498,23 +324,11 @@ async def chat_completions(
         response_data = {"error": str(e)}
         raise e
         
-    finally:
-        duration = (time.time() - start_time) * 1000
-        # Register the log writing to happen AFTER the response is sent
-        background_tasks.add_task(
-            log_request_to_db, 
-            req_id, 
-            request.model, 
-            status_code, 
-            duration, 
-            request.model_dump(), 
-            response_data, 
-            settings.upstream_completion_url
-        )
+
 
 @app.post("/chat/completions")
-async def chat_completions_alias(raw_request: Request, req: OpenAIRequest, background_tasks: BackgroundTasks, auth: HTTPAuthorizationCredentials = Depends(security)):
-    return await chat_completions(raw_request, req, background_tasks, auth)
+async def chat_completions_alias(raw_request: Request, req: OpenAIRequest, auth: HTTPAuthorizationCredentials = Depends(security)):
+    return await chat_completions(raw_request, req, auth)
 
 if __name__ == "__main__":
     print("🔋 Model Bridge Active (XML-to-JSON + Stream Faker)")

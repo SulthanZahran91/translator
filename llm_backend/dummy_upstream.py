@@ -29,14 +29,18 @@ class CompletionRequest(BaseModel):
     stream: bool = False
 
 @app.post("/auth")
-async def auth(req: AuthRequest):
+async def auth(req: Optional[AuthRequest] = None, email: Optional[str] = None, password: Optional[str] = None):
     # Accept any email/password for dummy purposes
-    if not req.email or not req.password:
+    # Check body first, then query params
+    req_email = req.email if req and req.email else email
+    req_password = req.password if req and req.password else password
+
+    if not req_email or not req_password:
         raise HTTPException(status_code=400, detail="Email and password required")
     
     token = f"dummy_token_{uuid.uuid4().hex[:8]}"
     TOKENS[token] = {
-        "email": req.email,
+        "email": req_email,
         "expires_at": time.time() + 3600 # 1 hour
     }
     
@@ -69,8 +73,7 @@ async def openai_completion(
     user_info: dict = Depends(verify_token),
     email: str = Header(...),
     product: str = Header(...),
-    version: str = Header(...),
-    recommend: str = Header(...)
+    version: str = Header(...)
 ):
     # Header Validation
     if email != user_info['email']:
@@ -79,8 +82,6 @@ async def openai_completion(
         raise HTTPException(status_code=400, detail="Invalid product header")
     if version != "1.0.0":
         raise HTTPException(status_code=400, detail="Invalid version header")
-    if recommend != "test-recommendation-API-call":
-        raise HTTPException(status_code=400, detail="Invalid recommend header")
 
     # Body Validation
     if req.stream:
