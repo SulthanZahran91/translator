@@ -186,9 +186,9 @@ async def login(
 
     try:
         auth_data = await llm_client.authenticate(form_data.username, form_data.password)
-        upstream_token = auth_data.get("token")
+        upstream_token = auth_data.get("api_key")
         if not upstream_token:
-            raise ValueError("No token returned from upstream")
+            raise ValueError("No api_key returned from upstream")
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

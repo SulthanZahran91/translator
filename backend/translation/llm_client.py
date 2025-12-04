@@ -87,7 +87,7 @@ class UpstreamLLMClient:
 
         try:
             auth_data = await self.authenticate(self.user.email, self.user.upstream_password)
-            new_token = auth_data.get("token")
+            new_token = auth_data.get("api_key")
 
             if not new_token:
                 raise ValueError("No token in re-auth response")

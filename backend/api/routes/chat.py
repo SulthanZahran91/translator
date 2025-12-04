@@ -45,7 +45,13 @@ async def chat_completions(
     base_url = settings.llm_api_url
 
     # Initialize OpenAI client
-    client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+    if not current_user.upstream_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not authenticated with upstream service. Please login again."
+        )
+    
+    client = AsyncOpenAI(api_key=current_user.upstream_token, base_url=base_url)
 
     try:
         if request.stream:
