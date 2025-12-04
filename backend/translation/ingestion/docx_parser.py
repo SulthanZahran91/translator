@@ -43,13 +43,21 @@ def _pt_to_float(pt_value: object) -> float | None:
 
 
 def _inches_to_float(inches_value: object) -> float | None:
-    """Convert Inches/EMU value to float inches."""
+    """Convert Inches/EMU value to float inches.
+    
+    python-docx returns Length objects for dimension values. These have
+    an `.inches` property. If we get a raw int/float, it's likely EMUs
+    (English Metric Units), so we convert: 914400 EMUs = 1 inch.
+    """
     if inches_value is None:
         return None
-    if isinstance(inches_value, (int, float)):
-        return float(inches_value)
+    # Check for Length objects first (they have .inches property)
     if hasattr(inches_value, "inches"):
         return float(inches_value.inches)
+    # Raw int/float values are EMUs - convert to inches
+    if isinstance(inches_value, (int, float)):
+        # EMUs to inches: 914400 EMUs = 1 inch
+        return float(inches_value) / 914400.0
     return None
 
 

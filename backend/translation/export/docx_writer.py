@@ -153,16 +153,32 @@ class DocxWriter:
         para_format = docx_para.paragraph_format
         para_format.alignment = _get_docx_alignment(paragraph.alignment)
 
+        # Helper to safely convert inches, skipping unreasonably large values
+        # that would cause integer overflow (max ~50 inches for any indent)
+        def _safe_inches(value: float | None) -> Inches | None:
+            if value is None:
+                return None
+            # If value is unreasonably large, it's likely malformed - skip
+            if abs(value) > 50:
+                return None
+            return Inches(value)
+
         if paragraph.space_before is not None:
             para_format.space_before = Pt(paragraph.space_before)
         if paragraph.space_after is not None:
             para_format.space_after = Pt(paragraph.space_after)
         if paragraph.left_indent is not None:
-            para_format.left_indent = Inches(paragraph.left_indent)
+            val = _safe_inches(paragraph.left_indent)
+            if val is not None:
+                para_format.left_indent = val
         if paragraph.right_indent is not None:
-            para_format.right_indent = Inches(paragraph.right_indent)
+            val = _safe_inches(paragraph.right_indent)
+            if val is not None:
+                para_format.right_indent = val
         if paragraph.first_line_indent is not None:
-            para_format.first_line_indent = Inches(paragraph.first_line_indent)
+            val = _safe_inches(paragraph.first_line_indent)
+            if val is not None:
+                para_format.first_line_indent = val
 
         # Write runs
         for run in paragraph.runs:

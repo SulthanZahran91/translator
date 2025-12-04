@@ -1,0 +1,285 @@
+#!/usr/bin/env python3
+"""
+Generate a large Korean test document for stress-testing the translation pipeline.
+
+The chunker uses ~25,000 tokens per unit. Korean text averages ~1.5-2 tokens per character.
+To get ~20 chunks, we need approximately 20 * 25000 / 1.5 ≈ 333,000 characters of Korean text.
+
+This script generates varied Korean content across multiple topics to create
+a realistic document with diverse vocabulary and sentence structures.
+"""
+
+import random
+from pathlib import Path
+
+# Korean content templates organized by topic
+TOPICS = {
+    "기술": {
+        "intro": [
+            "인공지능 기술의 발전은 우리 사회의 모든 영역에 혁명적인 변화를 가져오고 있습니다.",
+            "클라우드 컴퓨팅은 기업의 IT 인프라를 근본적으로 변화시키고 있습니다.",
+            "빅데이터 분석은 비즈니스 의사결정의 핵심 요소가 되었습니다.",
+            "사물인터넷(IoT)은 일상생활의 모든 기기를 연결하고 있습니다.",
+            "블록체인 기술은 금융 산업을 넘어 다양한 분야로 확장되고 있습니다.",
+        ],
+        "body": [
+            "머신러닝 알고리즘은 대량의 데이터에서 패턴을 인식하고 예측 모델을 구축합니다. 이러한 기술은 의료 진단, 금융 분석, 자율주행 자동차 등 다양한 분야에서 활용되고 있습니다.",
+            "딥러닝 신경망은 인간의 뇌 구조를 모방하여 설계되었습니다. 수많은 뉴런과 시냅스의 연결을 통해 복잡한 문제를 해결할 수 있습니다.",
+            "자연어 처리(NLP) 기술은 컴퓨터가 인간의 언어를 이해하고 생성할 수 있게 합니다. 번역, 요약, 감정 분석 등 다양한 응용 분야가 있습니다.",
+            "컴퓨터 비전 기술은 이미지와 비디오를 분석하여 객체를 인식하고 분류합니다. 의료 영상 분석, 보안 시스템, 품질 관리 등에 활용됩니다.",
+            "강화학습은 에이전트가 환경과 상호작용하면서 최적의 행동 전략을 학습합니다. 게임 AI, 로봇 제어, 자원 최적화 등에 적용됩니다.",
+            "분산 컴퓨팅 시스템은 여러 컴퓨터가 협력하여 대규모 작업을 처리합니다. 하둡, 스파크 등의 프레임워크가 널리 사용됩니다.",
+            "마이크로서비스 아키텍처는 대규모 애플리케이션을 작고 독립적인 서비스로 분해합니다. 이를 통해 개발, 배포, 확장이 용이해집니다.",
+            "컨테이너 기술은 애플리케이션과 그 실행 환경을 패키징합니다. 도커와 쿠버네티스가 업계 표준으로 자리잡았습니다.",
+            "서버리스 컴퓨팅은 인프라 관리 없이 코드를 실행할 수 있게 합니다. AWS Lambda, Azure Functions 등의 서비스가 있습니다.",
+            "엣지 컴퓨팅은 데이터를 생성하는 곳에서 직접 처리합니다. 이를 통해 지연 시간을 줄이고 대역폭을 절약할 수 있습니다.",
+        ],
+        "conclusion": [
+            "이러한 기술적 발전은 앞으로도 계속될 것이며, 우리의 삶을 더욱 편리하게 만들 것입니다.",
+            "기술 혁신은 새로운 가능성을 열어주지만, 윤리적 고려도 함께 이루어져야 합니다.",
+            "미래의 기술 환경은 더욱 통합되고 지능화될 것으로 예상됩니다.",
+        ],
+    },
+    "비즈니스": {
+        "intro": [
+            "현대 비즈니스 환경은 디지털 전환으로 인해 급격한 변화를 겪고 있습니다.",
+            "글로벌 경제의 불확실성 속에서 기업들은 새로운 전략을 모색하고 있습니다.",
+            "스타트업 생태계는 혁신적인 아이디어와 기술로 시장을 재편하고 있습니다.",
+            "지속가능한 경영은 기업의 필수 전략이 되었습니다.",
+            "원격 근무의 확산은 업무 방식을 근본적으로 변화시키고 있습니다.",
+        ],
+        "body": [
+            "디지털 마케팅은 소비자 행동 분석을 통해 맞춤형 광고를 제공합니다. 검색 엔진 최적화, 소셜 미디어 마케팅, 콘텐츠 마케팅 등의 전략이 있습니다.",
+            "고객 경험 관리는 모든 접점에서 일관된 서비스를 제공하는 것을 목표로 합니다. 이를 통해 고객 충성도를 높이고 장기적인 관계를 구축합니다.",
+            "공급망 관리의 디지털화는 재고 최적화와 비용 절감을 가능하게 합니다. 실시간 추적과 예측 분석이 핵심 요소입니다.",
+            "인적 자원 관리 시스템은 채용, 교육, 성과 관리를 통합합니다. 직원 만족도와 생산성 향상에 기여합니다.",
+            "재무 관리 소프트웨어는 예산 계획, 지출 추적, 재무 보고를 자동화합니다. 의사결정의 정확성을 높여줍니다.",
+            "프로젝트 관리 도구는 팀 협업과 일정 관리를 효율화합니다. 애자일 방법론의 도입이 증가하고 있습니다.",
+            "데이터 기반 의사결정은 직관보다 객관적 분석에 의존합니다. 비즈니스 인텔리전스 도구가 널리 사용됩니다.",
+            "고객 관계 관리(CRM) 시스템은 고객 데이터를 중앙에서 관리합니다. 영업, 마케팅, 고객 서비스를 통합합니다.",
+            "전자상거래 플랫폼은 온라인 판매 채널을 제공합니다. 옴니채널 전략이 중요해지고 있습니다.",
+            "비즈니스 프로세스 자동화는 반복적인 작업을 줄여줍니다. RPA(로봇 프로세스 자동화) 도입이 증가하고 있습니다.",
+        ],
+        "conclusion": [
+            "성공적인 기업은 변화에 빠르게 적응하고 혁신을 지속합니다.",
+            "디지털 역량은 미래 경쟁력의 핵심 요소가 될 것입니다.",
+            "지속가능한 성장을 위해서는 단기 수익보다 장기 가치를 추구해야 합니다.",
+        ],
+    },
+    "과학": {
+        "intro": [
+            "과학적 발견은 인류의 지식 지평을 넓혀왔습니다.",
+            "기초 연구는 미래 기술 혁신의 토대가 됩니다.",
+            "학제간 연구는 복잡한 문제를 해결하는 새로운 접근법을 제시합니다.",
+            "실험과 관찰을 통해 자연 현상의 원리를 규명합니다.",
+            "과학적 방법론은 객관적 진리를 탐구하는 도구입니다.",
+        ],
+        "body": [
+            "양자역학은 미시 세계의 물리적 현상을 설명합니다. 입자와 파동의 이중성, 불확정성 원리 등의 개념이 핵심입니다.",
+            "분자생물학의 발전은 유전자 편집 기술을 가능하게 했습니다. 크리스퍼 기술은 의학 연구에 혁명을 일으키고 있습니다.",
+            "천문학자들은 외계 행성의 발견을 통해 우주의 비밀을 탐구합니다. 제임스 웹 우주 망원경은 새로운 관측 지평을 열었습니다.",
+            "신경과학은 뇌의 구조와 기능을 연구합니다. 의식의 본질을 이해하기 위한 연구가 진행 중입니다.",
+            "기후 과학은 지구 온난화의 원인과 영향을 분석합니다. 탄소 중립을 위한 과학적 해결책을 모색하고 있습니다.",
+            "재료 과학은 새로운 물질의 개발을 연구합니다. 그래핀, 탄소나노튜브 등의 나노물질이 주목받고 있습니다.",
+            "화학 연구는 분자 수준에서 물질의 성질을 탐구합니다. 신약 개발, 에너지 저장 등에 기여합니다.",
+            "생태학은 생물과 환경의 상호작용을 연구합니다. 생물다양성 보전이 중요한 연구 주제입니다.",
+            "물리학은 우주의 근본 법칙을 탐구합니다. 통일장 이론의 완성을 위한 연구가 계속됩니다.",
+            "의학 연구는 질병의 원인과 치료법을 개발합니다. 정밀 의학의 시대가 열리고 있습니다.",
+        ],
+        "conclusion": [
+            "과학 연구는 인류의 미래를 위한 투자입니다.",
+            "윤리적 가이드라인 내에서 과학적 탐구가 이루어져야 합니다.",
+            "과학적 소양은 현대 사회의 시민에게 필수적입니다.",
+        ],
+    },
+    "문화": {
+        "intro": [
+            "문화는 사회의 정체성과 가치를 반영합니다.",
+            "예술과 문학은 인간의 감정과 사고를 표현하는 수단입니다.",
+            "전통 문화와 현대 문화의 조화가 중요해지고 있습니다.",
+            "글로벌화 시대에 문화 다양성의 가치가 부각됩니다.",
+            "디지털 기술은 문화 콘텐츠의 생산과 소비를 변화시키고 있습니다.",
+        ],
+        "body": [
+            "한국의 전통 음악은 국악이라 불리며, 판소리, 가야금, 해금 등의 장르가 있습니다. 유네스코 무형문화유산에 등재된 작품도 다수 있습니다.",
+            "한복은 한국의 전통 의상으로, 현대적으로 재해석되어 패션 산업에 영향을 주고 있습니다. 명절과 특별한 행사에 착용됩니다.",
+            "한국 영화는 세계적으로 인정받는 수준에 이르렀습니다. 칸 영화제, 아카데미 시상식에서 수상한 작품들이 있습니다.",
+            "K-팝은 전 세계적인 현상으로, 아이돌 그룹들이 글로벌 팬덤을 형성하고 있습니다. 음악, 안무, 패션이 결합된 종합 예술입니다.",
+            "한국 드라마는 아시아를 넘어 전 세계에서 인기를 얻고 있습니다. 오징어 게임은 넷플릭스 역사상 가장 성공한 시리즈가 되었습니다.",
+            "한국의 음식 문화는 발효 식품과 채식 중심의 건강한 특징을 가지고 있습니다. 김치, 된장, 고추장 등이 대표적입니다.",
+            "한글은 과학적으로 설계된 문자 체계입니다. 조선 시대 세종대왕에 의해 창제되었으며, 문맹률을 크게 낮추는 데 기여했습니다.",
+            "한국의 불교 문화는 사찰과 불상에서 그 정수를 볼 수 있습니다. 템플스테이는 외국인 관광객에게 인기 있는 체험 프로그램입니다.",
+            "한국의 현대 미술은 전통과 현대의 융합을 특징으로 합니다. 비엔날레와 아트페어가 정기적으로 개최됩니다.",
+            "도자기는 한국 전통 공예의 꽃입니다. 청자와 백자는 고려시대와 조선시대를 대표하는 예술품입니다.",
+        ],
+        "conclusion": [
+            "문화 교류는 국제 이해와 평화에 기여합니다.",
+            "전통 문화의 보존과 현대화가 균형을 이루어야 합니다.",
+            "문화 산업은 경제적 가치와 소프트 파워를 창출합니다.",
+        ],
+    },
+    "교육": {
+        "intro": [
+            "교육은 개인의 성장과 사회 발전의 기초입니다.",
+            "디지털 시대의 교육 방식이 변화하고 있습니다.",
+            "평생 학습의 중요성이 강조되고 있습니다.",
+            "교육 형평성을 위한 노력이 계속되고 있습니다.",
+            "창의성과 비판적 사고력 교육이 주목받고 있습니다.",
+        ],
+        "body": [
+            "온라인 교육 플랫폼은 시간과 장소에 구애받지 않는 학습을 가능하게 합니다. MOOC(대규모 온라인 공개 강좌)가 대표적인 예입니다.",
+            "인공지능 튜터는 개인화된 학습 경험을 제공합니다. 학습자의 수준과 속도에 맞춘 맞춤형 콘텐츠를 제공합니다.",
+            "프로젝트 기반 학습은 실제 문제 해결 능력을 기릅니다. 협업과 의사소통 능력도 함께 발달시킵니다.",
+            "STEM 교육은 과학, 기술, 공학, 수학의 통합 교육을 지향합니다. 미래 산업에 필요한 인재를 양성합니다.",
+            "코딩 교육은 초등학교부터 도입되고 있습니다. 컴퓨팅 사고력은 21세기 핵심 역량으로 인식됩니다.",
+            "언어 교육은 글로벌 시대의 필수 역량입니다. 다국어 구사 능력이 경쟁력의 원천이 됩니다.",
+            "인성 교육은 지식 교육만큼 중요합니다. 공감 능력, 윤리 의식, 사회적 책임감을 기릅니다.",
+            "특수 교육은 모든 학습자의 잠재력을 발휘하게 합니다. 포용적 교육 환경 조성이 중요합니다.",
+            "직업 교육은 산업 현장과 연계되어야 합니다. 실습 중심의 교육과정이 강조됩니다.",
+            "평가 방식도 변화하고 있습니다. 과정 중심 평가, 역량 기반 평가가 도입되고 있습니다.",
+        ],
+        "conclusion": [
+            "교육 혁신은 미래 세대를 위한 투자입니다.",
+            "교육 격차 해소를 위한 사회적 노력이 필요합니다.",
+            "학습자 중심의 교육 패러다임이 자리잡고 있습니다.",
+        ],
+    },
+}
+
+# Additional filler sentences for padding
+FILLER_SENTENCES = [
+    "이러한 변화는 점진적으로 일어나고 있으며, 그 영향은 광범위합니다.",
+    "전문가들은 이 분야의 발전이 앞으로 더욱 가속화될 것으로 전망합니다.",
+    "관련 연구는 계속 진행 중이며, 새로운 발견이 이루어지고 있습니다.",
+    "이에 대한 다양한 의견이 존재하며, 활발한 토론이 이루어지고 있습니다.",
+    "실제 사례를 살펴보면, 이 개념의 적용이 어떻게 이루어지는지 알 수 있습니다.",
+    "역사적으로 이 분야는 많은 변화를 겪어왔습니다.",
+    "국제적인 협력이 이 분야의 발전에 중요한 역할을 하고 있습니다.",
+    "정책적 지원이 필요하다는 목소리가 높아지고 있습니다.",
+    "시장 조사에 따르면, 이 분야의 성장률은 매우 높습니다.",
+    "교육과 훈련을 통해 관련 역량을 개발할 수 있습니다.",
+    "기술적 한계를 극복하기 위한 노력이 계속되고 있습니다.",
+    "사회적 영향을 고려한 접근이 필요합니다.",
+    "이해관계자 간의 소통이 성공의 열쇠입니다.",
+    "장기적인 관점에서 전략을 수립해야 합니다.",
+    "지속가능한 발전을 위한 방안을 모색하고 있습니다.",
+]
+
+
+def generate_section(topic_name: str, min_paragraphs: int = 10, max_paragraphs: int = 15) -> str:
+    """Generate a section on a specific topic."""
+    topic = TOPICS[topic_name]
+    paragraphs = []
+    
+    # Add section header
+    paragraphs.append(f"\n## {topic_name}\n")
+    
+    # Add intro
+    paragraphs.append(random.choice(topic["intro"]))
+    paragraphs.append("")
+    
+    # Add body paragraphs with some filler
+    num_body_paragraphs = random.randint(min_paragraphs, max_paragraphs)
+    for i in range(num_body_paragraphs):
+        # Add main content
+        paragraphs.append(random.choice(topic["body"]))
+        
+        # Occasionally add filler sentences
+        if random.random() > 0.5:
+            paragraphs.append(random.choice(FILLER_SENTENCES))
+        
+        paragraphs.append("")
+    
+    # Add conclusion
+    paragraphs.append(random.choice(topic["conclusion"]))
+    paragraphs.append("")
+    
+    return "\n".join(paragraphs)
+
+
+def generate_document(target_chars: int = 400000) -> str:
+    """Generate a large Korean document with varied content."""
+    lines = []
+    
+    # Add document header
+    lines.append("# 대규모 한국어 테스트 문서\n")
+    lines.append("이 문서는 번역 시스템의 청킹 및 처리 성능을 테스트하기 위해 자동 생성되었습니다.\n")
+    lines.append("다양한 주제와 문체를 포함하여 실제 문서를 모사합니다.\n")
+    lines.append("=" * 50 + "\n")
+    
+    current_length = len("\n".join(lines))
+    topic_names = list(TOPICS.keys())
+    iteration = 0
+    
+    while current_length < target_chars:
+        iteration += 1
+        
+        # Add chapter header
+        lines.append(f"\n# 제{iteration}장: 다양한 분야의 탐구\n")
+        
+        # Add sections for each topic
+        random.shuffle(topic_names)
+        for topic_name in topic_names:
+            section = generate_section(
+                topic_name,
+                min_paragraphs=15,  # Increased from 8
+                max_paragraphs=25   # Increased from 12
+            )
+            lines.append(section)
+            current_length = len("\n".join(lines))
+            
+            if current_length >= target_chars:
+                break
+        
+        # Safety break to prevent infinite loop
+        if iteration > 100:  # Increased from 20
+            break
+    
+    # Add document footer
+    lines.append("\n" + "=" * 50)
+    lines.append("\n문서 끝. 감사합니다.\n")
+    
+    return "\n".join(lines)
+
+
+def main():
+    """Generate the large test document."""
+    import sys
+    
+    # Target ~20 chunks with 25000 tokens each
+    # Korean averages ~1.5 tokens per character
+    # 20 * 25000 / 1.5 = ~333,333 characters
+    # Adding some buffer for safety
+    target_chars = 400000
+    
+    if len(sys.argv) > 1:
+        target_chars = int(sys.argv[1])
+    
+    print(f"Generating document with target {target_chars:,} characters...")
+    
+    document = generate_document(target_chars)
+    
+    # Write to file
+    output_path = Path(__file__).parent / "large_test_document.txt"
+    output_path.write_text(document, encoding="utf-8")
+    
+    # Report stats
+    char_count = len(document)
+    line_count = document.count("\n") + 1
+    word_count = len(document.split())
+    
+    print(f"\nGenerated document statistics:")
+    print(f"  Characters: {char_count:,}")
+    print(f"  Lines:      {line_count:,}")
+    print(f"  Words:      {word_count:,}")
+    print(f"  Output:     {output_path}")
+    
+    # Estimate tokens (rough approximation)
+    estimated_tokens = int(char_count * 1.5)
+    estimated_chunks = estimated_tokens // 25000
+    print(f"\nEstimated tokens: ~{estimated_tokens:,}")
+    print(f"Estimated chunks: ~{estimated_chunks}")
+
+
+if __name__ == "__main__":
+    main()
