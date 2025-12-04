@@ -42,7 +42,7 @@ class Settings(BaseSettings):
 
     # Upstream LLM Integration
     upstream_auth_url: str = "http://localhost:8000/auth"
-    upstream_completion_url: str = "http://localhost:8000/completion"
+    upstream_completion_url: str = "http://localhost:8000/v1/chat/completions"
     timeout_seconds: float = 120.0
 
     # Translation Pipeline
