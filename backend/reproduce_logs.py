@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import tempfile
+from pathlib import Path
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -40,7 +42,7 @@ async def reproduce():
             source_language="ko",
             target_language="en",
             output_format="docx",
-            source_file_path="/tmp/test.docx", # Dummy path
+            source_file_path=str(Path(tempfile.gettempdir()) / "test.docx"), # Dummy path
             status=JobStatus.PENDING.value
         )
         db.add(job)

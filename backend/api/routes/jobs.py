@@ -1,6 +1,7 @@
 """Jobs API routes."""
 
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import (
     APIRouter,
@@ -95,7 +96,9 @@ async def create_job(
     await db.commit()
 
     # Start job in background
-    with open("/tmp/debug_logs.txt", "a") as f:
+    import tempfile
+    debug_log_path = Path(tempfile.gettempdir()) / "debug_logs.txt"
+    with open(debug_log_path, "a") as f:
         f.write(f"[{datetime.utcnow()}] Adding background task for job {job.id}\n")
 
     runner = JobRunner(job.id)
